@@ -149,25 +149,25 @@ export default function UserBookings() {
     setOpenModify(true);
   };
 
-  const fetchCourtAvailability = async (academyId: string, sport: string, date: string) => {
-    try {
-      const res = await axios.post(
-        "http://localhost:5000/api/booking/check-availability",
-        {
-          academyId,
-          sport,
-          date,
-          startTime: modalTime,
-          duration: bookingToModify?.duration || 60,
-        }
-      );
-      setCourts(res.data.courts || []);
-      calculatePriceDiff(res.data.courts || []);
-    } catch (err) {
-      console.error(err);
-      setCourts([]);
-    }
-  };
+  const fetchCourtAvailability = async (academyId: string, sport: string, date: string, time?: string) => {
+  try {
+    const res = await axios.post(
+      "http://localhost:5000/api/booking/check-availability",
+      {
+        academyId,
+        sport,
+        date,
+        startTime: time || modalTime, // use passed time if available
+        duration: bookingToModify?.duration || 60,
+      }
+    );
+    setCourts(res.data.courts || []);
+    calculatePriceDiff(res.data.courts || []);
+  } catch (err) {
+    console.error(err);
+    setCourts([]);
+  }
+};
 
   const calculatePriceDiff = (availableCourts: any[]) => {
     if (!bookingToModify) return;
@@ -489,10 +489,10 @@ export default function UserBookings() {
                   value={parseInt(modalTime.split(":")[0]) + parseInt(modalTime.split(":")[1]) / 60}
                   onChange={(val) => {
                     const hrs = Math.floor(val);
-                    const mins = val % 1 === 0 ? 0 : 30;
+                    const mins = Math.round((val - hrs) * 60);
                     const timeStr = `${String(hrs).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
                     setModalTime(timeStr);
-                    fetchCourtAvailability(bookingToModify.academyId, bookingToModify.sport, modalDate);
+                    fetchCourtAvailability(bookingToModify.academyId, bookingToModify.sport, modalDate, timeStr); // pass timeStr
                   }}
                 />
                 <p className="text-sm mt-1">Selected: {modalTime}</p>
