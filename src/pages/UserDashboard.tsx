@@ -72,7 +72,7 @@ export default function UserDashboard() {
       <header className="bg-background/80 backdrop-blur-sm border-b sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">PlayC</h1>
+            <h1 className="text-2xl font-bold">PlayrUp</h1>
             <p className="text-muted-foreground">Welcome, {user.email}</p>
             <p className="text-sm text-muted-foreground">Phone: {user.phone}</p>
           </div>
