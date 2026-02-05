@@ -15,6 +15,7 @@ import PrivateRoute from "./pages/PrivateRoute";
 import UserDashboard from "./pages/UserDashboard";
 import BookCourt from "./pages/BookCourt";
 import UserBookings from "./pages/UserBookings";
+import HostActivity from "./pages/HostActivity";
 
 /** Super Admin pages import */
 import AdminLanding from "./pages/AdminLanding";
@@ -30,8 +31,8 @@ import AcademyLanding from "./pages/AcademyLanding";
 // import PlayCDashboard from "./pages/PlayC/Dashboard";
 // import BookCourt from "./pages/PlayC/BookCourt";
 // import UserBookings from "./pages/PlayC/UserBookings";
+// import HostActivity from "./pages/PlayC/HostActivity";
 import AllActivities from "./pages/PlayC/AllActivities";
-import HostActivity from "./pages/PlayC/HostActivity";
 import MyActivities from "./pages/PlayC/MyActivities";
 import MyHostedActivities from "./pages/PlayC/MyHostedActivities";
 import MyRequests from "./pages/PlayC/MyRequests";
@@ -55,6 +56,7 @@ const App = () => (
           <Route path="/dashboard" element={<PrivateRoute requiredRole="user"><UserDashboard /></PrivateRoute>} />
           <Route path="/bookcourt" element={<BookCourt />} />
           <Route path="/my-bookings" element={<UserBookings />} />
+          <Route path="/host-activity" element={<HostActivity />} />
 
 
           {/* Academy Routes*/}
@@ -75,8 +77,8 @@ const App = () => (
           {/* <Route path="/playc/dashboard" element={<PlayCDashboard />} /> */}
           {/* <Route path="/playc/book" element={<BookCourt />} /> */}
           {/* <Route path="/playc/my-bookings" element={<UserBookings />} /> */}
-          <Route path="/playc/activities" element={<AllActivities />} />
           <Route path="/playc/host-activity" element={<HostActivity />} />
+          <Route path="/playc/activities" element={<AllActivities />} />          
           <Route path="/playc/my-activities" element={<MyActivities />} />
           <Route path="/playc/my-hosted" element={<MyHostedActivities />} />
           <Route path="/playc/my-requests" element={<MyRequests />} />
