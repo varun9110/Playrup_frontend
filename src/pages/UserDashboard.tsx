@@ -151,7 +151,7 @@ export default function UserDashboard() {
           <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-3">
             <Button asChild><Link to="/bookcourt">Book a Court</Link></Button>
             <Button asChild><Link to="/my-bookings">My Bookings</Link></Button>
-            <Button asChild><Link to="/playc/host-activity">Host Activity</Link></Button>
+            <Button asChild><Link to="/host-activity">Host Activity</Link></Button>
             <Button variant="outline" asChild><Link to="/playc/activities">View All Activities</Link></Button>
             <Button variant="outline" asChild><Link to="/playc/my-hosted">My Hosted Activities</Link></Button>
             <Button variant="outline" asChild><Link to="/playc/my-requests">My Join Requests</Link></Button>

@@ -77,7 +77,7 @@ const App = () => (
           {/* <Route path="/playc/dashboard" element={<PlayCDashboard />} /> */}
           {/* <Route path="/playc/book" element={<BookCourt />} /> */}
           {/* <Route path="/playc/my-bookings" element={<UserBookings />} /> */}
-          <Route path="/playc/host-activity" element={<HostActivity />} />
+          {/* <Route path="/playc/host-activity" element={<HostActivity />} /> */}
           <Route path="/playc/activities" element={<AllActivities />} />          
           <Route path="/playc/my-activities" element={<MyActivities />} />
           <Route path="/playc/my-hosted" element={<MyHostedActivities />} />
