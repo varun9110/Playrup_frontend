@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -53,6 +54,7 @@ export default function AllActivities() {
   const [activityToCancel, setActivityToCancel] = useState(null);
 
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const userEmail = JSON.parse(localStorage.getItem('user'))?.email;
 
@@ -288,6 +290,13 @@ export default function AllActivities() {
                           {activity.joinedPlayers?.length || 0}/
                           {activity.maxPlayers} players
                         </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="text-xs py-1 px-2">
+                          {activity.skillLevel ? capitalizeWords(activity.skillLevel) : 'Any'}
+                        </Badge>
+                        <span className="text-muted-foreground text-xs">Skill Level</span>
                       </div>
                     </div>
 
