@@ -187,7 +187,6 @@ export default function EditActivity() {
         pricePerParticipant: data.price || 0,
       });
       toast({ title: "Activity updated ✅" });
-      navigate("/my-activities");
     } catch (err) {
       toast({ title: "Update failed", variant: "destructive" });
     }

@@ -209,14 +209,6 @@ export default function Dashboard() {
                   </div>
                 </div>
               ))}
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" asChild>
-                  <Link to="/playc/my-activities">My Activities</Link>
-                </Button>
-                <Button variant="outline" asChild>
-                  <Link to="/playc/host-activity">Host Activity</Link>
-                </Button>
-              </div>
             </CardContent>
           </Card>
         </div>

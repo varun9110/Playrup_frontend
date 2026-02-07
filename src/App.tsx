@@ -34,7 +34,6 @@ import AcademyLanding from "./pages/AcademyLanding";
 // import UserBookings from "./pages/PlayC/UserBookings";
 // import HostActivity from "./pages/PlayC/HostActivity";
 // import AllActivities from "./pages/PlayC/AllActivities";
-import MyActivities from "./pages/PlayC/MyActivities";
 import MyHostedActivities from "./pages/PlayC/MyHostedActivities";
 import MyRequests from "./pages/PlayC/MyRequests";
 import AdminBookings from "./pages/PlayC/AdminBookings";
@@ -81,7 +80,6 @@ const App = () => (
           {/* <Route path="/playc/my-bookings" element={<UserBookings />} /> */}
           {/* <Route path="/playc/host-activity" element={<HostActivity />} /> */}
           {/* <Route path="/playc/activities" element={<AllActivities />} /> */}
-          <Route path="/playc/my-activities" element={<MyActivities />} />
           <Route path="/playc/my-hosted" element={<MyHostedActivities />} />
           <Route path="/playc/my-requests" element={<MyRequests />} />
           <Route path="/playc/admin/bookings" element={<AdminBookings />} />

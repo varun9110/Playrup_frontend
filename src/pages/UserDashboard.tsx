@@ -158,7 +158,6 @@ export default function UserDashboard() {
             
             <Button variant="outline" asChild><Link to="/playc/my-hosted">My Hosted Activities</Link></Button>
             <Button variant="outline" asChild><Link to="/playc/my-requests">My Join Requests</Link></Button>
-            <Button variant="outline" asChild><Link to="/playc/my-activities">My Upcoming Activities</Link></Button>
             {/* ✅ New Pending Requests Button */}
             <Button variant="outline" asChild><Link to="/playc/pending-requests">Pending Requests</Link></Button>
           </CardContent>
