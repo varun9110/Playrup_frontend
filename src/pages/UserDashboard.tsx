@@ -153,12 +153,14 @@ export default function UserDashboard() {
             <Button asChild><Link to="/my-bookings">My Bookings</Link></Button>
             <Button asChild><Link to="/host-activity">Host Activity</Link></Button>
             <Button variant="outline" asChild><Link to="/activities">View All Activities</Link></Button>
+            <Button variant="outline" asChild><Link to="/my-hosted">My Hosted Activities</Link></Button>
+            <Button variant="outline" asChild><Link to="/activity-requests">Activity Requests</Link></Button>
+
 
 
             
-            <Button variant="outline" asChild><Link to="/playc/my-hosted">My Hosted Activities</Link></Button>
-            <Button variant="outline" asChild><Link to="/playc/my-requests">My Join Requests</Link></Button>
-            {/* ✅ New Pending Requests Button */}
+          
+            
             <Button variant="outline" asChild><Link to="/playc/pending-requests">Pending Requests</Link></Button>
           </CardContent>
         </Card>

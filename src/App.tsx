@@ -17,6 +17,8 @@ import BookCourt from "./pages/BookCourt";
 import UserBookings from "./pages/UserBookings";
 import HostActivity from "./pages/HostActivity";
 import AllActivities from "./pages/AllActivities";
+import MyHostedActivities from "./pages/MyHostedActivities";
+import UserActivityRequests from "./pages/UserActivityRequests";
 
 /** Super Admin pages import */
 import AdminLanding from "./pages/AdminLanding";
@@ -34,7 +36,7 @@ import AcademyLanding from "./pages/AcademyLanding";
 // import UserBookings from "./pages/PlayC/UserBookings";
 // import HostActivity from "./pages/PlayC/HostActivity";
 // import AllActivities from "./pages/PlayC/AllActivities";
-import MyHostedActivities from "./pages/PlayC/MyHostedActivities";
+// import MyHostedActivities from "./pages/PlayC/MyHostedActivities";
 import MyRequests from "./pages/PlayC/MyRequests";
 import AdminBookings from "./pages/PlayC/AdminBookings";
 
@@ -58,6 +60,8 @@ const App = () => (
           <Route path="/my-bookings" element={<UserBookings />} />
           <Route path="/host-activity" element={<HostActivity />} />
           <Route path="/activities" element={<AllActivities />} />
+          <Route path="/my-hosted" element={<MyHostedActivities />} />
+          <Route path="/activity-requests" element={<UserActivityRequests />} />
 
 
           {/* Academy Routes*/}
@@ -80,8 +84,8 @@ const App = () => (
           {/* <Route path="/playc/my-bookings" element={<UserBookings />} /> */}
           {/* <Route path="/playc/host-activity" element={<HostActivity />} /> */}
           {/* <Route path="/playc/activities" element={<AllActivities />} /> */}
-          <Route path="/playc/my-hosted" element={<MyHostedActivities />} />
-          <Route path="/playc/my-requests" element={<MyRequests />} />
+          {/* <Route path="/playc/my-hosted" element={<MyHostedActivities />} /> */}
+          {/* <Route path="/playc/my-requests" element={<MyRequests />} /> */}
           <Route path="/playc/admin/bookings" element={<AdminBookings />} />
 
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
