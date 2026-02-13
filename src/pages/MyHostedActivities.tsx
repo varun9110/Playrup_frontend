@@ -59,8 +59,8 @@ export default function MyHostedActivities() {
         });
 
         // Optional: sort by date
-        upcoming.sort((a, b) => new Date(a.date) - new Date(b.date));
-        past.sort((a, b) => new Date(b.date) - new Date(a.date));
+        upcoming.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        past.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         setUpcomingActivities(upcoming);
         setPastActivities(past);
@@ -169,8 +169,10 @@ export default function MyHostedActivities() {
         <h1 className="text-3xl font-bold mb-6">My Hosted Activities</h1>
 
         <Tabs defaultValue="upcoming" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="upcoming">Upcoming Activities</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="upcoming">All Upcoming Activities</TabsTrigger>
+            <TabsTrigger value="myactivities">My Hosted Activities</TabsTrigger>
+            <TabsTrigger value="cancelled">Cancelled</TabsTrigger>
             <TabsTrigger value="past">Past Activities</TabsTrigger>
           </TabsList>
 
