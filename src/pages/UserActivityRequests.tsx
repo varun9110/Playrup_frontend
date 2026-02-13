@@ -236,8 +236,8 @@ export default function UserActivityRequests() {
             </div>
 
             <div className="col-span-2">
-              <span className="text-muted-foreground">Requested by</span>
-              <p className="font-medium">{request.userEmail}</p>
+              <span className="text-muted-foreground">Requested to</span>
+              <p className="font-medium">{request.activityId.hostEmail}</p>
             </div>
           </div>
           <div className="flex justify-between mt-3 flex-wrap gap-2">
