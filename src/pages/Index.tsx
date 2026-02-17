@@ -11,14 +11,14 @@ const Index = () => {
       const abcd = { ...data, password: bcrypt.hash(data.password, 10) };
       console.log("Login data submitted:", abcd);
       const res = await axios.post('http://localhost:5000/api/auth/login', data);
-      const { token, userId, userEmail, userPhone, role } = res.data;
+      const { token, ...userData } = res.data;
 
       localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify({ email: userEmail, phone: userPhone, role, userId }));
+      localStorage.setItem('user', JSON.stringify(userData));
 
-      if (role === 'superadmin') {
+      if (userData.role === 'superadmin') {
         navigate('/adminlanding');
-      } else if (role === 'academy') {
+      } else if (userData.role === 'academy') {
         navigate('/academy-setup');
       } else {
         navigate('/dashboard');

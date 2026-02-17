@@ -8,7 +8,6 @@ import { Calendar, Clock, MapPin, Users, Trophy, Activity } from 'lucide-react';
 export default function UserDashboard() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user'));
-  console.log("User data from localStorage:", user);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -76,7 +75,7 @@ export default function UserDashboard() {
             <h1 className="text-2xl font-bold">PlayrUp</h1>
             {/* <p className="text-muted-foreground">Welcome, {user.email}</p> */}
             {/* <p className="text-sm text-muted-foreground">Phone: {user.phone}</p> */}
-            <p className="text-muted-foreground">Welcome, USER NAME HERE</p>
+            <p className="text-muted-foreground">Welcome, {user.name}</p>
           </div>
           <div className="flex gap-2">
             <Button onClick={handleLogout} variant="destructive">Logout</Button>
