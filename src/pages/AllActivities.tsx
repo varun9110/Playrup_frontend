@@ -57,6 +57,7 @@ export default function AllActivities() {
   const navigate = useNavigate();
 
   const userEmail = JSON.parse(localStorage.getItem('user'))?.email;
+  const userId = JSON.parse(localStorage.getItem("user"))?.userId;
 
 
   const fetchActivities = async () => {
@@ -79,6 +80,16 @@ export default function AllActivities() {
     fetchActivities();
   }, []);
 
+  // Helper functions
+  const isJoined = (activity) => {
+    return activity.joinedPlayers?.some((player) => player.content === userId.content);
+  };
+
+  const isRequested = (activity) => {
+    return activity.pendingRequests?.some((player) => player.content === userId.content);
+  };
+
+
   /* ---------- ACTION HANDLERS ---------- */
 
   const handleJoinActivity = async (activityId) => {
@@ -88,6 +99,7 @@ export default function AllActivities() {
       const res = await axios.post('http://localhost:5000/api/activity/requestJoin', {
         activityId,
         userEmail,
+        userId,
       });
 
       console.log(res.data.message);
@@ -131,6 +143,7 @@ export default function AllActivities() {
       const res = await axios.post('http://localhost:5000/api/activity/cancelActivity', {
         activityId: activityToCancel._id,
         hostEmail: userEmail,
+        hostId: userId,
       });
 
       console.log(res.data.message); // Optional: success message
@@ -211,7 +224,7 @@ export default function AllActivities() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredActivities.map((activity) => {
-              const isHost = activity.hostEmail === userEmail;
+              const isHost = activity.host.id.content === userId.content;
 
               return (
                 <Card key={activity._id} className="hover:shadow-lg transition-shadow">
@@ -222,7 +235,7 @@ export default function AllActivities() {
                           {capitalizeWords(activity.sport)}
                         </CardTitle>
                         <CardDescription className="mt-1">
-                          Hosted by {activity.hostEmail}
+                          Hosted by {activity.host.name}
                         </CardDescription>
                       </div>
 
@@ -305,14 +318,15 @@ export default function AllActivities() {
                         size="sm"
                         className="w-full"
                         onClick={() => handleJoinActivity(activity._id)}
-                        disabled={activity.pendingRequests?.includes(userEmail) || activity.joinedPlayers?.includes(userEmail)}
+                        disabled={isJoined(activity) || isRequested(activity)}
                       >
-                        {activity.joinedPlayers?.includes(userEmail)
+                        {isJoined(activity)
                           ? 'Joined'
-                          : activity.pendingRequests?.includes(userEmail)
+                          : isRequested(activity)
                             ? 'Requested'
                             : 'Join Activity'}
                       </Button>
+
                     )}
                   </CardContent>
                 </Card>

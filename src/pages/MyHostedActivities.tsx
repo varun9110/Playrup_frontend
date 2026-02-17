@@ -23,62 +23,85 @@ import {
   Users,
   MoreVertical,
 } from 'lucide-react';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export default function MyHostedActivities() {
   const [upcomingActivities, setUpcomingActivities] = useState([]);
   const [pastActivities, setPastActivities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activityToCancel, setActivityToCancel] = useState(null);
+  const [openCancel, setOpenCancel] = useState(false);
 
-  const user = JSON.parse(localStorage.getItem('user')!);
-  const userEmail = user?.email;
-
-  const isHost = true; // Replace with real logic to check if user is host
+  const userEmail = JSON.parse(localStorage.getItem('user'))?.email;
+  const userId = JSON.parse(localStorage.getItem("user"))?.userId;
 
   useEffect(() => {
+    fetchActivities();
+  }, []);
+
+  const fetchActivities = async () => {
     if (!userEmail) return;
 
-    const fetchActivities = async () => {
-      try {
-        const res = await axios.post(
-          'http://localhost:5000/api/activity/userActivities',
-          { userEmail }
-        );
+    try {
+      const res = await axios.post(
+        'http://localhost:5000/api/activity/userActivities',
+        { userEmail, userId }
+      );
 
-        const upcoming = [];
-        const past = [];
+      const upcoming = [];
+      const past = [];
 
-        res.data.activities.forEach((activity) => {
-          // Parse the date from API (ISO string)
-          const activityDate = new Date(activity.date);
+      res.data.activitiesWithEncryptedData.forEach((activity) => {
+        const activityDate = new Date(activity.date);
+        if (activityDate > new Date()) {
+          upcoming.push(activity);
+        } else {
+          past.push(activity);
+        }
+      });
 
-          if (activityDate > new Date()) {
-            upcoming.push(activity);
-          } else {
-            past.push(activity);
-          }
-        });
+      setUpcomingActivities(upcoming);
+      setPastActivities(past);
+    } catch (err) {
+      console.error('Error fetching activities:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        // Optional: sort by date
-        upcoming.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        past.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-        setUpcomingActivities(upcoming);
-        setPastActivities(past);
-      } catch (err) {
-        console.error('Error fetching activities:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchActivities();
-  }, [userEmail]);
 
   const capitalizeWords = (str) =>
     str ? str.replace(/\b\w/g, (char) => char.toUpperCase()) : '';
 
   const handleEditActivity = (activity) => console.log('Edit activity', activity);
-  const openCancelModal = (activity) => console.log('Cancel activity', activity);
+
+  const openCancelModal = (activity) => {
+    setActivityToCancel(activity);
+    setOpenCancel(true);
+  };
+
+  /* ---------- CANCEL ACTIVITY ---------- */
+  const confirmCancelActivity = async () => {
+    if (!activityToCancel) return;
+
+    try {
+      const res = await axios.post('http://localhost:5000/api/activity/cancelActivity', {
+        activityId: activityToCancel._id,
+        hostEmail: userEmail,
+        hostId: userId,
+      });
+
+      console.log(res.data.message); // Optional: success message
+
+      // REFRESH ACTIVITIES LIST WITH CURRENT FILTERS
+      await fetchActivities(); // <-- Fetch latest activities after cancel
+    } catch (err) {
+      console.error('Failed to cancel activity', err);
+    } finally {
+      setOpenCancel(false);
+      setActivityToCancel(null);
+    }
+  };
 
   const renderActivityCard = (activity) => (
     <Card key={activity._id} className="hover:shadow-lg transition-shadow">
@@ -87,14 +110,14 @@ export default function MyHostedActivities() {
           <div>
             <CardTitle className="text-lg">{capitalizeWords(activity.sport)}</CardTitle>
             <CardDescription className="mt-1">
-              Hosted by {activity.hostEmail}
+              Hosted by {activity.host.name}
             </CardDescription>
           </div>
 
           <div className="flex items-center gap-2">
             <Badge variant="outline">{capitalizeWords(activity.city)}</Badge>
 
-            {isHost && (
+            {activity.host.id.content === userId.content && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="icon" variant="ghost" className="h-8 w-8">
@@ -201,6 +224,49 @@ export default function MyHostedActivities() {
           </TabsContent>
         </Tabs>
       </div>
+
+      
+      {/* ================= CANCEL CONFIRMATION MODAL ================= */}
+      <Dialog open={openCancel} onOpenChange={setOpenCancel}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-destructive">
+              Cancel Activity?
+            </DialogTitle>
+          </DialogHeader>
+
+          {activityToCancel && (
+            <div className="space-y-3 text-sm">
+              <p className="text-muted-foreground">
+                Are you sure you want to cancel this activity?
+              </p>
+
+              <div className="rounded-lg border p-3 space-y-1">
+                <p className="font-semibold">
+                  {capitalizeWords(activityToCancel.sport)}
+                </p>
+                <p>
+                  {new Date(activityToCancel.date).toLocaleDateString()} ·{' '}
+                  {activityToCancel.fromTime} - {activityToCancel.toTime}
+                </p>
+                <p>
+                  {capitalizeWords(activityToCancel.location) ||
+                    capitalizeWords(activityToCancel.address)}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setOpenCancel(false)}>
+              Keep Activity
+            </Button>
+            <Button variant="destructive" onClick={confirmCancelActivity}>
+              Cancel Activity
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

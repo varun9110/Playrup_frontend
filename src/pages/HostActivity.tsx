@@ -57,6 +57,7 @@ type FormData = z.infer<typeof schema>;
 export default function HostActivity() {
   const { toast } = useToast();
   const userEmail = JSON.parse(localStorage.getItem("user")!).email;
+  const userId = JSON.parse(localStorage.getItem("user"))?.userId;
 
   const [bookings, setBookings] = useState<any[]>([]);
   const [cities, setCities] = useState<string[]>([]);
@@ -114,7 +115,7 @@ export default function HostActivity() {
 
   useEffect(() => {
     axios
-      .post("http://localhost:5000/api/booking/my-bookings", { userEmail })
+      .post("http://localhost:5000/api/booking/my-bookings", { userEmail, userId })
       .then((res) => {
         setBookings(res.data.filter((b: any) => new Date(b.date) >= new Date()));
       });
@@ -220,9 +221,11 @@ export default function HostActivity() {
     try {
       const payload = {
         hostEmail: userEmail,
+        hostId: userId,
         city: data.location,
         location: data.location,
         sport: data.sport,
+        academyId: selectedAcademy?._id || "",
         academy: selectedAcademy?.name || "",
         address: selectedAcademy?.address || "",
         date: data.date,
