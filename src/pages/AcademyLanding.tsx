@@ -16,6 +16,7 @@ const sportsList = ["Badminton", "Tennis", "Table Tennis", "Squash", "Basketball
 
 export default function AcademyLanding() {
   const email = JSON.parse(localStorage.getItem("user"))?.email;
+  const userId = JSON.parse(localStorage.getItem("user"))?.userId;
   const [selectedSports, setSelectedSports] = useState([]);
   const [sportsConfig, setSportsConfig] = useState({});
   const { toast } = useToast();
@@ -35,7 +36,10 @@ export default function AcademyLanding() {
   useEffect(() => {
     const fetchAcademyDetails = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/academy/getDetails?email=${email}`);
+        const res = await axios.post("http://localhost:5000/api/academy/getDetails", {
+          email,
+          userId,
+        });
         const data = res.data.academy;
 
         if (data && data.sports) {
@@ -126,6 +130,7 @@ export default function AcademyLanding() {
 
     await axios.post("http://localhost:5000/api/academy/configure", {
       email,
+      userId,
       sports,
     });
     toast({

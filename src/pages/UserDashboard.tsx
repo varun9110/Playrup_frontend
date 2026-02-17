@@ -8,6 +8,7 @@ import { Calendar, Clock, MapPin, Users, Trophy, Activity } from 'lucide-react';
 export default function UserDashboard() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user'));
+  console.log("User data from localStorage:", user);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -73,8 +74,9 @@ export default function UserDashboard() {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">PlayrUp</h1>
-            <p className="text-muted-foreground">Welcome, {user.email}</p>
-            <p className="text-sm text-muted-foreground">Phone: {user.phone}</p>
+            {/* <p className="text-muted-foreground">Welcome, {user.email}</p> */}
+            {/* <p className="text-sm text-muted-foreground">Phone: {user.phone}</p> */}
+            <p className="text-muted-foreground">Welcome, USER NAME HERE</p>
           </div>
           <div className="flex gap-2">
             <Button onClick={handleLogout} variant="destructive">Logout</Button>
@@ -155,13 +157,6 @@ export default function UserDashboard() {
             <Button variant="outline" asChild><Link to="/activities">View All Activities</Link></Button>
             <Button variant="outline" asChild><Link to="/my-hosted">My Hosted Activities</Link></Button>
             <Button variant="outline" asChild><Link to="/activity-requests">Activity Requests</Link></Button>
-
-
-
-            
-          
-            
-            <Button variant="outline" asChild><Link to="/playc/pending-requests">Pending Requests</Link></Button>
           </CardContent>
         </Card>
 

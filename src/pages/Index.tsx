@@ -11,10 +11,10 @@ const Index = () => {
       const abcd = { ...data, password: bcrypt.hash(data.password, 10) };
       console.log("Login data submitted:", abcd);
       const res = await axios.post('http://localhost:5000/api/auth/login', data);
-      const { token, email, phone, role } = res.data;
+      const { token, userId, userEmail, userPhone, role } = res.data;
 
       localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify({ email, phone, role }));
+      localStorage.setItem('user', JSON.stringify({ email: userEmail, phone: userPhone, role, userId }));
 
       if (role === 'superadmin') {
         navigate('/adminlanding');

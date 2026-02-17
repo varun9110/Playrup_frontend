@@ -150,9 +150,11 @@ export default function BookCourt() {
     }
 
     const userEmail = JSON.parse(localStorage.getItem("user"))?.email;
+    const userId = JSON.parse(localStorage.getItem("user"))?.userId;
 
     await axios.post("http://localhost:5000/api/booking/create", {
       userEmail,
+      userId,
       academyId: selectedAcademy._id,
       sport,
       courtNumber,

@@ -43,7 +43,7 @@ export default function AdminLanding() {
             Superadmin Dashboard
           </CardTitle>
           <CardDescription className="text-muted-foreground">
-            Welcome, <span className="font-semibold text-accent">{user.email}</span>
+            Welcome, <span className="font-semibold text-accent">Super Admin</span>
           </CardDescription>
         </CardHeader>
 
