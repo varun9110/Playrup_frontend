@@ -18,8 +18,8 @@ export default function UserActivityRequests() {
   const [loading, setLoading] = useState(false);
 
 
-  const user = JSON.parse(localStorage.getItem('user')!);
-  const userEmail = user?.email;
+  const userEmail = JSON.parse(localStorage.getItem('user'))?.email;
+  const userId = JSON.parse(localStorage.getItem("user"))?.userId;
 
   useEffect(() => {
     fetchIncomingRequests();
@@ -32,7 +32,7 @@ export default function UserActivityRequests() {
       setLoading(true);
       const res = await axios.post(
         'http://localhost:5000/api/request/hosted/pending-requests',
-        { email: userEmail }
+        { userEmail, userId }
       );
 
       const requests = res.data.requests || [];
@@ -65,7 +65,7 @@ export default function UserActivityRequests() {
 
       const res = await axios.post(
         'http://localhost:5000/api/request/my-requests',
-        { email: userEmail }
+        { userEmail, userId }
       );
 
       const requests = res.data.requests || [];
@@ -100,7 +100,7 @@ export default function UserActivityRequests() {
 
   };
 
-  const handleApprove = async (requestId, activityId, userEmail) => {
+  const handleApprove = async (requestId, activityId, userId) => {
     try {
       // Optional: disable button while processing
       setIncomingRequests(prev =>
@@ -114,11 +114,11 @@ export default function UserActivityRequests() {
         {
           requestId,
           activityId,
-          userEmail
+          userId
         }
       );
 
-      // ✅ Remove from UI after successful approval
+      // Remove from UI after successful approval
       setIncomingRequests(prev =>
         prev.filter(req => req._id !== requestId)
       );
@@ -140,7 +140,7 @@ export default function UserActivityRequests() {
   };
 
 
-  const handleReject = async (requestId, activityId, userEmail) => {
+  const handleReject = async (requestId, activityId, userId) => {
     try {
       // Disable button while rejecting
       setIncomingRequests(prev =>
@@ -154,7 +154,7 @@ export default function UserActivityRequests() {
         {
           requestId,
           activityId,
-          userEmail
+          userId
         }
       );
 
@@ -180,7 +180,7 @@ export default function UserActivityRequests() {
   };
 
 
-  const handleWithdraw = async (requestId, activityId, userEmail) => {
+  const handleWithdraw = async (requestId, activityId, userId) => {
     try {
       // Disable button while withdrawing
       setSentRequests(prev =>
@@ -194,7 +194,7 @@ export default function UserActivityRequests() {
         {
           requestId,
           activityId,
-          userEmail
+          userId
         }
       );
 
@@ -263,7 +263,7 @@ export default function UserActivityRequests() {
 
             <div className="col-span-2">
               <span className="text-muted-foreground">Requested by</span>
-              <p className="font-medium">{request.userEmail}</p>
+              <p className="font-medium">{request.userId.name}</p>
             </div>
           </div>
 
@@ -272,7 +272,7 @@ export default function UserActivityRequests() {
             <Button
               size="sm"
               className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => handleViewProfile(request.userEmail)}
+              onClick={() => handleViewProfile(request.userId._id)}
             >
               View Player Profile
             </Button>
@@ -286,7 +286,7 @@ export default function UserActivityRequests() {
                   handleApprove(
                     request._id,
                     request.activityId._id,
-                    request.userEmail
+                    request.userId._id
                   )
                 }
                 disabled={request.approving}
@@ -301,7 +301,7 @@ export default function UserActivityRequests() {
                   handleReject(
                     request._id,
                     request.activityId._id,
-                    request.userEmail
+                    request.userId._id
                   )
                 }
                 disabled={request.rejecting}
@@ -373,7 +373,7 @@ export default function UserActivityRequests() {
 
             <div className="col-span-2">
               <span className="text-muted-foreground">Requested to</span>
-              <p className="font-medium">{request.activityId.hostEmail}</p>
+              <p className="font-medium">{request.hostDetails.name}</p>
             </div>
           </div>
           <div className="flex justify-between mt-3 flex-wrap gap-2">
@@ -386,7 +386,7 @@ export default function UserActivityRequests() {
                     handleWithdraw(
                       request._id,
                       request.activityId._id,
-                      request.userEmail
+                      request.userId._id
                     )
                   }
                   disabled={request.withdrawing}
