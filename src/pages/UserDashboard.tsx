@@ -1,13 +1,23 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, MapPin, Users, Trophy, Activity } from 'lucide-react';
 
+import { capitalizeWords } from '@/lib/utils';
+
 export default function UserDashboard() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user'));
+  const userEmail = JSON.parse(localStorage.getItem("user"))?.email;
+  const userId = JSON.parse(localStorage.getItem("user"))?.userId;
+  const token = localStorage.getItem('token');
+
+  const [upcomingBookings, setUpcomingBookings] = useState([]);
+  const [bookingCount, setBookingCount] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -15,26 +25,36 @@ export default function UserDashboard() {
     navigate('/');
   };
 
-  const upcomingBookings = [
-    {
-      id: 1,
-      sport: 'Basketball',
-      court: 'Court A',
-      date: '2024-01-15',
-      time: '6:00 PM - 8:00 PM',
-      location: 'Downtown Sports Center',
-      status: 'confirmed'
-    },
-    {
-      id: 2,
-      sport: 'Tennis',
-      court: 'Court 3',
-      date: '2024-01-17',
-      time: '10:00 AM - 11:30 AM',
-      location: 'Riverside Tennis Club',
-      status: 'pending'
-    }
-  ];
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchDashboardData = async () => {
+      try {
+        const response = await axios.post(
+          'http://localhost:5000/api/dashboard/dashboard-data',
+          {
+            userEmail,
+            userId
+          },
+          // {
+          //   headers: {
+          //     Authorization: `Bearer ${token}`
+          //   }
+          // }
+        );
+
+        setUpcomingBookings(response.data.bookings || []);
+        setBookingCount(response.data.count || 0);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
 
   const recentActivities = [
     {
@@ -73,13 +93,11 @@ export default function UserDashboard() {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">PlayrUp</h1>
-            {/* <p className="text-muted-foreground">Welcome, {user.email}</p> */}
-            {/* <p className="text-sm text-muted-foreground">Phone: {user.phone}</p> */}
             <p className="text-muted-foreground">Welcome, {user.name}</p>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={handleLogout} variant="destructive">Logout</Button>
-          </div>
+          <Button onClick={handleLogout} variant="destructive">
+            Logout
+          </Button>
         </div>
       </header>
 
@@ -93,13 +111,18 @@ export default function UserDashboard() {
                   <Calendar className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">3</p>
-                  <p className="text-sm text-muted-foreground">Upcoming Bookings</p>
+                  <p className="text-2xl font-bold">
+                    {loading ? '...' : bookingCount}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Upcoming Bookings
+                  </p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
+          {/* Other cards remain static for now */}
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
@@ -108,7 +131,9 @@ export default function UserDashboard() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold">5</p>
-                  <p className="text-sm text-muted-foreground">Activities Joined</p>
+                  <p className="text-sm text-muted-foreground">
+                    Activities Joined
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -122,7 +147,9 @@ export default function UserDashboard() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold">2</p>
-                  <p className="text-sm text-muted-foreground">Hosted Events</p>
+                  <p className="text-sm text-muted-foreground">
+                    Hosted Events
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -136,7 +163,9 @@ export default function UserDashboard() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold">150</p>
-                  <p className="text-sm text-muted-foreground">Points Earned</p>
+                  <p className="text-sm text-muted-foreground">
+                    Points Earned
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -165,38 +194,57 @@ export default function UserDashboard() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="h-5 w-5" />
-                Upcoming Bookings
+                Next 5 Upcoming Bookings
               </CardTitle>
-              <CardDescription>Your scheduled court reservations</CardDescription>
+              <CardDescription>
+                Your scheduled court reservations
+              </CardDescription>
             </CardHeader>
+
             <CardContent className="space-y-4">
-              {upcomingBookings.map((booking) => (
-                <div key={booking.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium">{booking.sport} - {booking.court}</h3>
-                      <Badge variant={booking.status === 'confirmed' ? 'default' : 'secondary'}>
-                        {booking.status}
-                      </Badge>
+              {loading ? (
+                <p className="text-muted-foreground">Loading bookings...</p>
+              ) : upcomingBookings.length === 0 ? (
+                <p className="text-muted-foreground">
+                  No upcoming bookings found.
+                </p>
+              ) : (
+                upcomingBookings
+                  .slice(0, 5) // ✅ limit to maximum 5
+                  .map((booking) => (
+                    <div
+                      key={booking._id}
+                      className="flex items-center justify-between p-4 border rounded-lg"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-medium">
+                            {capitalizeWords(booking.sport)} - Court {booking.courtNumber}
+                          </h3>
+                          <Badge>{capitalizeWords(booking.status)}</Badge>
+                        </div>
+
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            {new Date(booking.date).toLocaleDateString()}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-4 w-4" />
+                            {booking.startTime} - {booking.endTime}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                          <MapPin className="h-4 w-4" />
+                          {capitalizeWords(booking.academyId?.name || 'Unknown Academy')}
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        {booking.date}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        {booking.time}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                      <MapPin className="h-4 w-4" />
-                      {booking.location}
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  ))
+              )}
             </CardContent>
+
           </Card>
 
           {/* Recent Activities */}

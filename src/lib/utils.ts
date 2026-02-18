@@ -9,8 +9,11 @@ export function cn(...inputs: ClassValue[]) {
 
 export function capitalizeWords(str) {
   // Split the string by spaces, hyphens, or underscores
-    const words = str.toLowerCase().split(/[ -_]+/);
-
+    const words = str
+    .toLowerCase()
+    .trim()
+    .split(/[ _-]+/)   // split only on space, underscore, hyphen
+    .filter(Boolean);  // remove empty strings
   // Use map to iterate over each word and capitalize its first letter
   const capitalizedWords = words.map(word => {
     if (word.length === 0) {
@@ -19,6 +22,8 @@ export function capitalizeWords(str) {
     // Capitalize the first character and concatenate with the rest of the word
     return word.charAt(0).toUpperCase() + word.slice(1);
   });
+
+  // console.log(capitalizedWords); // Debugging: Check the capitalized words array
 
   // Join the capitalized words back into a single string with spaces
   return capitalizedWords.join(' ');
