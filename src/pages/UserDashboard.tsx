@@ -43,8 +43,8 @@ export default function UserDashboard() {
           // }
         );
 
-        setUpcomingBookings(response.data.bookings || []);
-        setBookingCount(response.data.count || 0);
+        setUpcomingBookings(response.data.upcomingBookings || []);
+        setBookingCount(response.data.upcomingBookingsCount || 0);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {
