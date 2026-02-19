@@ -11,12 +11,14 @@ import { capitalizeWords } from '@/lib/utils';
 export default function UserDashboard() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user'));
-  const userEmail = JSON.parse(localStorage.getItem("user"))?.email;
-  const userId = JSON.parse(localStorage.getItem("user"))?.userId;
+  const userEmail = user?.email;
+  const userId = user?.userId;
   const token = localStorage.getItem('token');
 
   const [upcomingBookings, setUpcomingBookings] = useState([]);
   const [bookingCount, setBookingCount] = useState(0);
+  const [activitiesJoined, setActivitiesJoined] = useState(0);
+  const [recentPastActivities, setRecentPastActivities] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const handleLogout = () => {
@@ -32,19 +34,17 @@ export default function UserDashboard() {
       try {
         const response = await axios.post(
           'http://localhost:5000/api/dashboard/dashboard-data',
-          {
-            userEmail,
-            userId
-          },
-          // {
-          //   headers: {
-          //     Authorization: `Bearer ${token}`
-          //   }
-          // }
+          { userEmail, userId },
+          // Uncomment if your backend uses auth
+          // { headers: { Authorization: `Bearer ${token}` } }
         );
 
-        setUpcomingBookings(response.data.upcomingBookings || []);
-        setBookingCount(response.data.upcomingBookingsCount || 0);
+        const data = response.data;
+
+        setUpcomingBookings(data.upcomingBookings || []);
+        setBookingCount(data.upcomingBookingsCount || 0);
+        setActivitiesJoined(data.pastActivitiesCount || 0); // assuming backend returns this
+        setRecentPastActivities(data.recentPastActivities || []);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {
@@ -54,28 +54,6 @@ export default function UserDashboard() {
 
     fetchDashboardData();
   }, []);
-
-
-  const recentActivities = [
-    {
-      id: 1,
-      title: 'Friday Night Basketball',
-      participants: 8,
-      maxParticipants: 10,
-      date: '2024-01-19',
-      time: '7:00 PM',
-      status: 'joining'
-    },
-    {
-      id: 2,
-      title: 'Weekend Tennis Tournament',
-      participants: 12,
-      maxParticipants: 16,
-      date: '2024-01-20',
-      time: '9:00 AM',
-      status: 'hosting'
-    }
-  ];
 
   if (!user) {
     setTimeout(() => navigate('/'), 1000);
@@ -111,18 +89,13 @@ export default function UserDashboard() {
                   <Calendar className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">
-                    {loading ? '...' : bookingCount}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Upcoming Bookings
-                  </p>
+                  <p className="text-2xl font-bold">{loading ? '...' : bookingCount}</p>
+                  <p className="text-sm text-muted-foreground">Upcoming Bookings</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Other cards remain static for now */}
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
@@ -130,10 +103,8 @@ export default function UserDashboard() {
                   <Activity className="h-6 w-6 text-accent-foreground" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">5</p>
-                  <p className="text-sm text-muted-foreground">
-                    Activities Joined
-                  </p>
+                  <p className="text-2xl font-bold">{loading ? '...' : activitiesJoined}</p>
+                  <p className="text-sm text-muted-foreground">Activities Joined</p>
                 </div>
               </div>
             </CardContent>
@@ -163,9 +134,7 @@ export default function UserDashboard() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold">150</p>
-                  <p className="text-sm text-muted-foreground">
-                    Points Earned
-                  </p>
+                  <p className="text-sm text-muted-foreground">Points Earned</p>
                 </div>
               </div>
             </CardContent>
@@ -196,55 +165,40 @@ export default function UserDashboard() {
                 <Calendar className="h-5 w-5" />
                 Next 5 Upcoming Bookings
               </CardTitle>
-              <CardDescription>
-                Your scheduled court reservations
-              </CardDescription>
+              <CardDescription>Your scheduled court reservations</CardDescription>
             </CardHeader>
-
             <CardContent className="space-y-4">
               {loading ? (
                 <p className="text-muted-foreground">Loading bookings...</p>
               ) : upcomingBookings.length === 0 ? (
-                <p className="text-muted-foreground">
-                  No upcoming bookings found.
-                </p>
+                <p className="text-muted-foreground">No upcoming bookings found.</p>
               ) : (
-                upcomingBookings
-                  .slice(0, 5) // ✅ limit to maximum 5
-                  .map((booking) => (
-                    <div
-                      key={booking._id}
-                      className="flex items-center justify-between p-4 border rounded-lg"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-medium">
-                            {capitalizeWords(booking.sport)} - Court {booking.courtNumber}
-                          </h3>
-                          <Badge>{capitalizeWords(booking.status)}</Badge>
-                        </div>
-
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-4 w-4" />
-                            {new Date(booking.date).toLocaleDateString()}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-4 w-4" />
-                            {booking.startTime} - {booking.endTime}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <MapPin className="h-4 w-4" />
-                          {capitalizeWords(booking.academyId?.name || 'Unknown Academy')}
-                        </div>
+                upcomingBookings.slice(0, 5).map((booking) => (
+                  <div key={booking._id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium">{capitalizeWords(booking.sport)} - Court {booking.courtNumber}</h3>
+                        <Badge>{capitalizeWords(booking.status)}</Badge>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-4 w-4" />
+                          {new Date(booking.date).toLocaleDateString()}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-4 w-4" />
+                          {booking.startTime} - {booking.endTime}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <MapPin className="h-4 w-4" />
+                        {capitalizeWords(booking.academyId?.name || 'Unknown Academy')}
                       </div>
                     </div>
-                  ))
+                  </div>
+                ))
               )}
             </CardContent>
-
           </Card>
 
           {/* Recent Activities */}
@@ -257,32 +211,38 @@ export default function UserDashboard() {
               <CardDescription>Group activities you're involved in</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {recentActivities.map((activity) => (
-                <div key={activity.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium">{activity.title}</h3>
-                      <Badge variant={activity.status === 'hosting' ? 'default' : 'outline'}>
-                        {activity.status}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        {activity.date}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        {activity.time}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                      <Users className="h-4 w-4" />
-                      {activity.participants}/{activity.maxParticipants} participants
+              {loading ? (
+                <p className="text-muted-foreground">Loading activities...</p>
+              ) : recentPastActivities.length === 0 ? (
+                <p className="text-muted-foreground">No recent activities found.</p>
+              ) : (
+                recentPastActivities.slice(0, 5).map((activity) => (
+                  <div key={activity._id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium">{capitalizeWords(activity.title)}</h3>
+                        <Badge variant={activity.status === 'hosting' ? 'default' : 'outline'}>
+                          {capitalizeWords(activity.status)}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-4 w-4" />
+                          {activity.date}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-4 w-4" />
+                          {activity.time}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Users className="h-4 w-4" />
+                        {activity.participants}/{activity.maxParticipants} participants
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </CardContent>
           </Card>
         </div>
