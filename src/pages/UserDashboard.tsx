@@ -104,7 +104,7 @@ export default function UserDashboard() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold">{loading ? '...' : activitiesJoined}</p>
-                  <p className="text-sm text-muted-foreground">Activities Joined</p>
+                  <p className="text-sm text-muted-foreground">Total Activities</p>
                 </div>
               </div>
             </CardContent>
