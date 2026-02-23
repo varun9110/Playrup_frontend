@@ -15,10 +15,13 @@ export default function UserDashboard() {
   const userId = user?.userId;
   const token = localStorage.getItem('token');
 
+  console.log('User ID:', userId);
+
   const [upcomingBookings, setUpcomingBookings] = useState([]);
   const [bookingCount, setBookingCount] = useState(0);
   const [activitiesJoined, setActivitiesJoined] = useState(0);
   const [recentPastActivities, setRecentPastActivities] = useState([]);
+  const [pastHostedActivitiesCount, setPastHostedActivitiesCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const handleLogout = () => {
@@ -43,8 +46,9 @@ export default function UserDashboard() {
 
         setUpcomingBookings(data.upcomingBookings || []);
         setBookingCount(data.upcomingBookingsCount || 0);
-        setActivitiesJoined(data.pastActivitiesCount || 0); // assuming backend returns this
+        setActivitiesJoined(data.pastActivitiesCount || 0);
         setRecentPastActivities(data.recentPastActivities || []);
+        setPastHostedActivitiesCount(data.pastHostedActivitiesCount || 0);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {
@@ -117,7 +121,7 @@ export default function UserDashboard() {
                   <Users className="h-6 w-6 text-secondary-foreground" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">2</p>
+                  <p className="text-2xl font-bold">{loading ? '...' : pastHostedActivitiesCount}</p>
                   <p className="text-sm text-muted-foreground">
                     Hosted Events
                   </p>
@@ -133,7 +137,7 @@ export default function UserDashboard() {
                   <Trophy className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">150</p>
+                  <p className="text-2xl font-bold">0</p>
                   <p className="text-sm text-muted-foreground">Points Earned</p>
                 </div>
               </div>
@@ -178,12 +182,12 @@ export default function UserDashboard() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <h3 className="font-medium">{capitalizeWords(booking.sport)} - Court {booking.courtNumber}</h3>
-                        <Badge>{capitalizeWords(booking.status)}</Badge>
+                        {/* <Badge>{capitalizeWords(booking.status)}</Badge> */}
                       </div>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
-                          {new Date(booking.date).toLocaleDateString()}
+                          {booking.date.split('-').reverse().join('/')}
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="h-4 w-4" />
@@ -220,24 +224,24 @@ export default function UserDashboard() {
                   <div key={activity._id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-medium">{capitalizeWords(activity.title)}</h3>
-                        <Badge variant={activity.status === 'hosting' ? 'default' : 'outline'}>
-                          {capitalizeWords(activity.status)}
+                        <h3 className="font-medium">{capitalizeWords(activity.sport)} - Court {activity.courtNumber}</h3>
+                        <Badge variant={'outline'}>
+                          {activity.hostId.content === userId.content ? 'Host' : 'Participant'}
                         </Badge>
                       </div>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
-                          {activity.date}
+                          {activity.date?.split('T')[0].split('-').reverse().join('/')}
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="h-4 w-4" />
-                          {activity.time}
+                          {activity.fromTime} - {activity.toTime}
                         </span>
                       </div>
                       <div className="flex items-center gap-1 text-sm text-muted-foreground">
                         <Users className="h-4 w-4" />
-                        {activity.participants}/{activity.maxParticipants} participants
+                        {activity.joinedPlayers.length}/{activity.maxPlayers} participants
                       </div>
                     </div>
                   </div>
