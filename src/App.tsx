@@ -26,7 +26,8 @@ import AdminLanding from "./pages/AdminLanding";
 import AdminOnboardAcademy from "./pages/AdminOnboardAcademy";
 
 /** Academy pages import */
-import AcademyLanding from "./pages/AcademyLanding";
+import AcademySetup from "./pages/AcademySetup";
+import AcademyDashboard from "./pages/AcademyDashboard";
 
 // PlayC Components
 // import PlayCRegister from "./pages/PlayC/Register";
@@ -38,7 +39,7 @@ import AcademyLanding from "./pages/AcademyLanding";
 // import HostActivity from "./pages/PlayC/HostActivity";
 // import AllActivities from "./pages/PlayC/AllActivities";
 // import MyHostedActivities from "./pages/PlayC/MyHostedActivities";
-import MyRequests from "./pages/PlayC/MyRequests";
+// import MyRequests from "./pages/PlayC/MyRequests";
 import AdminBookings from "./pages/PlayC/AdminBookings";
 
 
@@ -67,7 +68,8 @@ const App = () => (
 
 
           {/* Academy Routes*/}
-          <Route path="/academy-setup" element={<PrivateRoute requiredRole="academy"><AcademyLanding /></PrivateRoute>} />
+          <Route path="/academy-setup" element={<PrivateRoute requiredRole="academy"><AcademySetup /></PrivateRoute>} />
+          <Route path="/academy-dashboard" element={<PrivateRoute requiredRole="academy"><AcademyDashboard /></PrivateRoute>} />
 
 
           {/* Super Admin Routes */}

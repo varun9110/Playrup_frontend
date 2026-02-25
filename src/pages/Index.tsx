@@ -19,7 +19,7 @@ const Index = () => {
       if (userData.role === 'superadmin') {
         navigate('/adminlanding');
       } else if (userData.role === 'academy') {
-        navigate('/academy-setup');
+        navigate('/academy-dashboard');
       } else {
         navigate('/dashboard');
       }

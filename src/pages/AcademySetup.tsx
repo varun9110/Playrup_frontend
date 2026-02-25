@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const sportsList = ["Badminton", "Tennis", "Table Tennis", "Squash", "Basketball", "Cricket"];
 
-export default function AcademyLanding() {
+export default function AcademySetup() {
   const email = JSON.parse(localStorage.getItem("user"))?.email;
   const userId = JSON.parse(localStorage.getItem("user"))?.userId;
   const [selectedSports, setSelectedSports] = useState([]);
@@ -159,15 +159,6 @@ export default function AcademyLanding() {
                 </Button>
               ))}
             </div>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                localStorage.removeItem("user"); // clear user session
-                window.location.href = "/"; // redirect to login page
-              }}
-            >
-              Logout
-            </Button>
           </div>
         </CardContent>
       </Card>
