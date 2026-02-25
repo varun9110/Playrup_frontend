@@ -4,7 +4,22 @@ import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, MapPin, Users, Trophy, Activity } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
+
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  Users,
+  Trophy,
+  Activity,
+  User
+} from 'lucide-react';
 
 import { capitalizeWords } from '@/lib/utils';
 
@@ -15,14 +30,22 @@ export default function UserDashboard() {
   const userId = user?.userId;
   const token = localStorage.getItem('token');
 
-  console.log('User ID:', userId);
-
   const [upcomingBookings, setUpcomingBookings] = useState([]);
   const [bookingCount, setBookingCount] = useState(0);
   const [activitiesJoined, setActivitiesJoined] = useState(0);
   const [recentPastActivities, setRecentPastActivities] = useState([]);
   const [pastHostedActivitiesCount, setPastHostedActivitiesCount] = useState(0);
   const [loading, setLoading] = useState(true);
+
+
+  if (!user) {
+    setTimeout(() => navigate('/'), 1000);
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-lg text-muted-foreground">Unauthorized access. Redirecting...</p>
+      </div>
+    );
+  }
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -37,7 +60,7 @@ export default function UserDashboard() {
       try {
         const response = await axios.post(
           'http://localhost:5000/api/dashboard/dashboard-data',
-          { userEmail, userId },
+          { userEmail, userId }
           // Uncomment if your backend uses auth
           // { headers: { Authorization: `Bearer ${token}` } }
         );
@@ -59,15 +82,7 @@ export default function UserDashboard() {
     fetchDashboardData();
   }, []);
 
-  if (!user) {
-    setTimeout(() => navigate('/'), 1000);
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-lg text-muted-foreground">Unauthorized access. Redirecting...</p>
-      </div>
-    );
-  }
-
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 to-accent/5">
       {/* Header */}
@@ -75,13 +90,36 @@ export default function UserDashboard() {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">PlayrUp</h1>
-            <p className="text-muted-foreground">Welcome, {user.name}</p>
+            <p className="text-muted-foreground">
+              Welcome, {capitalizeWords(user.name)}
+            </p>
           </div>
-          <Button onClick={handleLogout} variant="destructive">
-            Logout
-          </Button>
+
+          {/* 🔥 USER DROPDOWN */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon">
+                <User className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => navigate('/profile')}>
+                View Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-red-600"
+                onClick={handleLogout}
+              >
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
+
+      {/* Rest of your dashboard remains EXACTLY SAME */}
+      {/* No changes below this line */}
 
       <div className="container mx-auto px-4 py-6 space-y-6">
         {/* Quick Stats */}

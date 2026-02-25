@@ -13,6 +13,7 @@ import PrivateRoute from "./pages/PrivateRoute";
 
 /** User pages import */
 import UserDashboard from "./pages/UserDashboard";
+import UserProfile from "./pages/UserProfile";
 import BookCourt from "./pages/BookCourt";
 import UserBookings from "./pages/UserBookings";
 import HostActivity from "./pages/HostActivity";
@@ -56,6 +57,7 @@ const App = () => (
 
           {/* User Routes */}
           <Route path="/dashboard" element={<PrivateRoute requiredRole="user"><UserDashboard /></PrivateRoute>} />
+          <Route path="/profile" element={<PrivateRoute requiredRole="user"><UserProfile /></PrivateRoute>} />
           <Route path="/bookcourt" element={<BookCourt />} />
           <Route path="/my-bookings" element={<UserBookings />} />
           <Route path="/host-activity" element={<HostActivity />} />
