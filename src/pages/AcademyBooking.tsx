@@ -8,8 +8,6 @@ import {
   isSameDay,
   addDays,
   subDays,
-  isBefore,
-  isAfter,
   parse,
 } from "date-fns";
 
@@ -174,14 +172,6 @@ export default function AcademyBooking() {
       : [];
   }, [selectedSport, sports]);
 
-  /* ---------------- Proper Overlap Logic ---------------- */
-  const getBookingForSlot = (court: number, hour: Date) => {
-    return bookingsForDay.find(b => {
-      if (b.court !== court) return false;
-      return isBefore(hour, b.end) && isAfter(setMinutes(hour, 59), b.start);
-    });
-  };
-
   /* ---------------- UI ---------------- */
   return (
     <div className="p-6 space-y-6">
@@ -245,48 +235,79 @@ export default function AcademyBooking() {
 
         <CardContent>
           <div
-            className="grid"
-            style={{ gridTemplateColumns: `120px repeat(${courts.length}, 1fr)` }}
+            className="grid relative border"
+            style={{
+              gridTemplateColumns: `120px repeat(${courts.length}, 1fr)`,
+              gridAutoRows: "64px", // match your slot height per hour
+            }}
           >
-            <div className="border p-2 font-semibold">Time</div>
+            {/* Top-left empty cell */}
+            <div className="border p-2 bg-gray-50"></div>
 
+            {/* Header: Court Names */}
             {courts.map((court) => (
               <div key={court} className="border p-2 font-semibold text-center">
                 Court {court}
               </div>
             ))}
 
-            {hours.map((hour) => (
-              <React.Fragment key={hour.toISOString()}>
-                <div className="border p-2 text-sm">{format(hour, "hh:mm a")}</div>
+            {/* Time Column and Booking Columns */}
+            {hours.map((hour) => {
+              return (
+                <React.Fragment key={hour.toISOString()}>
+                  {/* Time Column */}
+                  <div className="border p-2 text-sm bg-gray-50">
+                    {format(hour, "hh:mm a")}
+                  </div>
 
-                {courts.map((court) => {
-                  const booking = getBookingForSlot(court, hour);
+                  {/* Court Columns */}
+                  {courts.map((court) => (
+                    <div key={court} className="relative border">
+                      {bookingsForDay
+                        .filter(
+                          (b) =>
+                            b.court === court &&
+                            b.start.getHours() <= hour.getHours() &&
+                            b.end.getHours() > hour.getHours()
+                        )
+                        .map((b) => {
+                          const sportObj = sports.find(
+                            (s) => s.sportName === selectedSport
+                          );
+                          if (!sportObj) return null;
 
-                  return (
-                    <div
-                      key={court}
-                      className="border h-16 relative cursor-pointer"
-                      onClick={() => booking && setSelectedBooking(booking)}
-                    >
-                      {booking && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="absolute inset-1 rounded-xl bg-primary/20 p-2 text-xs shadow-sm"
-                        >
-                          <div className="font-medium">{booking.userName}</div>
-                          <div>{booking.sport}</div>
-                          <div>
-                            {format(booking.start, "hh:mm a")} - {format(booking.end, "hh:mm a")}
-                          </div>
-                        </motion.div>
-                      )}
+                          const startHour = parseInt(sportObj.startTime.split(":")[0]);
+                          const slotHeight = 64; // px per hour
+
+                          const top =
+                            ((b.start.getHours() + b.start.getMinutes() / 60 - startHour) *
+                              slotHeight);
+                          const height =
+                            ((b.end.getTime() - b.start.getTime()) / (1000 * 60 * 60)) *
+                            slotHeight;
+
+                          return (
+                            <motion.div
+                              key={b.id}
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              className="absolute left-1 right-1 rounded-xl bg-primary/20 p-2 text-xs shadow-sm cursor-pointer"
+                              style={{ top, height }}
+                              onClick={() => setSelectedBooking(b)}
+                            >
+                              <div className="font-medium">{b.userName}</div>
+                              <div>{b.sport}</div>
+                              <div>
+                                {format(b.start, "hh:mm a")} - {format(b.end, "hh:mm a")}
+                              </div>
+                            </motion.div>
+                          );
+                        })}
                     </div>
-                  );
-                })}
-              </React.Fragment>
-            ))}
+                  ))}
+                </React.Fragment>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
