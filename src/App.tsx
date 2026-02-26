@@ -28,6 +28,7 @@ import AdminOnboardAcademy from "./pages/AdminOnboardAcademy";
 /** Academy pages import */
 import AcademySetup from "./pages/AcademySetup";
 import AcademyDashboard from "./pages/AcademyDashboard";
+import AcademyBooking from "./pages/AcademyBooking";
 
 // PlayC Components
 // import PlayCRegister from "./pages/PlayC/Register";
@@ -70,6 +71,7 @@ const App = () => (
           {/* Academy Routes*/}
           <Route path="/academy-setup" element={<PrivateRoute requiredRole="academy"><AcademySetup /></PrivateRoute>} />
           <Route path="/academy-dashboard" element={<PrivateRoute requiredRole="academy"><AcademyDashboard /></PrivateRoute>} />
+          <Route path="/academy-bookings" element={<PrivateRoute requiredRole="academy"><AcademyBooking /></PrivateRoute>} />
 
 
           {/* Super Admin Routes */}
