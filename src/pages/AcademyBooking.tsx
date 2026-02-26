@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
+import axios from "axios";
 import { format, setHours, setMinutes, isSameDay, addDays, subDays } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -18,41 +19,56 @@ interface Booking {
 
 const courts = [1, 2, 3];
 
-const bookingsSeed: Booking[] = [
-  {
-    id: "1",
-    court: 1,
-    date: new Date("2026-02-25"),
-    start: setMinutes(setHours(new Date("2026-02-25"), 17), 0),
-    end: setMinutes(setHours(new Date("2026-02-25"), 18), 0),
-    userName: "Rahul Sharma",
-    sport: "Badminton",
-  },
-  {
-    id: "2",
-    court: 2,
-    date: new Date("2026-02-26"),
-    start: setMinutes(setHours(new Date("2026-02-26"), 17), 0),
-    end: setMinutes(setHours(new Date("2026-02-26"), 18), 0),
-    userName: "Aman Verma",
-    sport: "Badminton",
-  },
-  {
-    id: "3",
-    court: 3,
-    date: new Date("2026-02-27"),
-    start: setMinutes(setHours(new Date("2026-02-27"), 17), 0),
-    end: setMinutes(setHours(new Date("2026-02-27"), 18), 0),
-    userName: "Sahil Mehta",
-    sport: "Badminton",
-  },
-];
-
 export default function AcademyBooking() {
-  const [selectedDate, setSelectedDate] = useState<Date>(
-    new Date("2026-02-26")
-  );
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date("2026-02-26"));
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+
+  const userId = JSON.parse(localStorage.getItem("user"))?.userId;
+
+  const startDate = format(subDays(selectedDate, 1), "yyyy-MM-dd");
+  const endDate = format(addDays(selectedDate, 1), "yyyy-MM-dd");
+
+  const fetchBookings = async () => {
+    try {
+      const res = await axios.post("http://localhost:5000/api/booking/academy-bookings", {
+        academyId: userId,
+        startDate,
+        endDate,
+      });
+
+      const data: Booking[] = res.data.bookings.map((b: any) => ({
+        id: b._id,
+        court: b.court,
+        date: new Date(b.date),
+        start: new Date(b.start),
+        end: new Date(b.end),
+        userName: b.userName,
+        sport: b.sport,
+      }));
+
+      setBookings(data);
+    } catch (err) {
+      console.error("Error fetching bookings:", err);
+    }
+  };
+
+  // Fetch on mount and set interval for 30s
+  useEffect(() => {
+    fetchBookings();
+
+    if (intervalRef.current) clearInterval(intervalRef.current);
+
+    intervalRef.current = setInterval(() => {
+      fetchBookings();
+    }, 30000);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [selectedDate]); // refetch if selectedDate changes
 
   const hours = useMemo(() => {
     const startHour = 6;
@@ -64,16 +80,10 @@ export default function AcademyBooking() {
     return list;
   }, [selectedDate]);
 
-  const bookingsForDay = bookingsSeed.filter((b) =>
-    isSameDay(b.date, selectedDate)
-  );
+  const bookingsForDay = bookings.filter((b) => isSameDay(b.date, selectedDate));
 
   const getBookingForSlot = (court: number, hour: Date) => {
-    return bookingsForDay.find(
-      (b) =>
-        b.court === court &&
-        b.start.getHours() === hour.getHours()
-    );
+    return bookingsForDay.find((b) => b.court === court && b.start.getHours() === hour.getHours());
   };
 
   return (
@@ -90,6 +100,9 @@ export default function AcademyBooking() {
               className="w-48"
             />
             <Button onClick={() => setSelectedDate(addDays(selectedDate, 1))}>{'>'}</Button>
+            <Button onClick={fetchBookings} variant="secondary">
+              Refresh
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -105,9 +118,7 @@ export default function AcademyBooking() {
             {/* Time Rows */}
             {hours.map((hour) => (
               <React.Fragment key={hour.toISOString()}>
-                <div className="border p-2 text-sm">
-                  {format(hour, "hh:mm a")}
-                </div>
+                <div className="border p-2 text-sm">{format(hour, "hh:mm a")}</div>
                 {courts.map((court, index) => {
                   const booking = getBookingForSlot(court, hour);
                   return (
@@ -125,8 +136,11 @@ export default function AcademyBooking() {
                           <div className="font-medium">{booking.userName}</div>
                           <div>{booking.sport}</div>
 
-                          {/* Hover Details */}
-                          <div className={`absolute hidden group-hover:block bg-white shadow-lg rounded-xl p-3 text-xs top-0 z-50 w-48 ${index === courts.length - 1 ? 'right-full mr-2 left-auto' : 'left-full ml-2'}`}>
+                          <div
+                            className={`absolute hidden group-hover:block bg-white shadow-lg rounded-xl p-3 text-xs top-0 z-50 w-48 ${
+                              index === courts.length - 1 ? "right-full mr-2 left-auto" : "left-full ml-2"
+                            }`}
+                          >
                             <div className="font-semibold mb-1">Booking Details</div>
                             <div>User: {booking.userName}</div>
                             <div>Sport: {booking.sport}</div>
@@ -154,15 +168,21 @@ export default function AcademyBooking() {
           </DialogHeader>
           {selectedBooking && (
             <div className="space-y-2 text-sm">
-              <div><strong>User:</strong> {selectedBooking.userName}</div>
-              <div><strong>Sport:</strong> {selectedBooking.sport}</div>
+              <div>
+                <strong>User:</strong> {selectedBooking.userName}
+              </div>
+              <div>
+                <strong>Sport:</strong> {selectedBooking.sport}
+              </div>
               <div>
                 <strong>Time:</strong> {format(selectedBooking.start, "hh:mm a")} - {format(selectedBooking.end, "hh:mm a")}
               </div>
               <div>
                 <strong>Date:</strong> {format(selectedBooking.date, "dd MMM yyyy")}
               </div>
-              <div><strong>Court:</strong> {selectedBooking.court}</div>
+              <div>
+                <strong>Court:</strong> {selectedBooking.court}
+              </div>
             </div>
           )}
         </DialogContent>
