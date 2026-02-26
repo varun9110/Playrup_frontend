@@ -62,7 +62,7 @@ export default function AcademySetup() {
     };
 
     if (email) fetchAcademyDetails();
-  }, [email]);
+  }, []);
 
   const handleAddSport = (sport) => {
     if (!selectedSports.includes(sport)) {
