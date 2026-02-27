@@ -9,6 +9,7 @@ import {
   addDays,
   subDays,
   parse,
+  addHours
 } from "date-fns";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -238,7 +239,7 @@ export default function AcademyBooking() {
             className="grid relative border"
             style={{
               gridTemplateColumns: `120px repeat(${courts.length}, 1fr)`,
-              gridAutoRows: "64px", // match your slot height per hour
+              gridAutoRows: "64px",
             }}
           >
             {/* Top-left empty cell */}
@@ -251,9 +252,11 @@ export default function AcademyBooking() {
               </div>
             ))}
 
-            {/* Time Column and Booking Columns */}
-            {hours.map((hour) => {
-              return (
+            {/* Track which bookings have been rendered globally */}
+            {(() => {
+              const alreadyRenderedBooking = new Set<string>();
+
+              return hours.map((hour) => (
                 <React.Fragment key={hour.toISOString()}>
                   {/* Time Column */}
                   <div className="border p-2 text-sm bg-gray-50">
@@ -261,53 +264,53 @@ export default function AcademyBooking() {
                   </div>
 
                   {/* Court Columns */}
-                  {courts.map((court) => (
-                    <div key={court} className="relative border">
-                      {bookingsForDay
-                        .filter(
-                          (b) =>
-                            b.court === court &&
-                            b.start.getHours() <= hour.getHours() &&
-                            b.end.getHours() > hour.getHours()
-                        )
-                        .map((b) => {
-                          const sportObj = sports.find(
-                            (s) => s.sportName === selectedSport
-                          );
-                          if (!sportObj) return null;
+                  {courts.map((court) => {
+                    const bookingsForCourt = bookingsForDay.filter((b) => b.court === court);
 
-                          const startHour = parseInt(sportObj.startTime.split(":")[0]);
+                    return (
+                      <div key={court} className="relative border">
+                        {bookingsForCourt.map((booking) => {
+                          if (alreadyRenderedBooking.has(booking.id)) return null;
+
                           const slotHeight = 64; // px per hour
+                          const firstHour = hours[0].getHours() + hours[0].getMinutes() / 60;
+                          const bookingStartHour =
+                            booking.start.getHours() + booking.start.getMinutes() / 60;
+                          const bookingEndHour =
+                            booking.end.getHours() + booking.end.getMinutes() / 60;
 
-                          const top =
-                            ((b.start.getHours() + b.start.getMinutes() / 60 - startHour) *
-                              slotHeight);
-                          const height =
-                            ((b.end.getTime() - b.start.getTime()) / (1000 * 60 * 60)) *
-                            slotHeight;
+                          // Render only at the first hour row that overlaps the booking
+                          if (hour.getHours() + hour.getMinutes() / 60 > bookingStartHour) return null;
+
+                          // Mark booking as rendered
+                          alreadyRenderedBooking.add(booking.id);
+
+                          const top = (bookingStartHour - firstHour) * slotHeight;
+                          const height = (bookingEndHour - bookingStartHour) * slotHeight;
 
                           return (
                             <motion.div
-                              key={b.id}
+                              key={booking.id}
                               initial={{ opacity: 0 }}
                               animate={{ opacity: 1 }}
                               className="absolute left-1 right-1 rounded-xl bg-primary/20 p-2 text-xs shadow-sm cursor-pointer"
                               style={{ top, height }}
-                              onClick={() => setSelectedBooking(b)}
+                              onClick={() => setSelectedBooking(booking)}
                             >
-                              <div className="font-medium">{b.userName}</div>
-                              <div>{b.sport}</div>
+                              <div className="font-medium">{booking.userName}</div>
+                              <div>{booking.sport}</div>
                               <div>
-                                {format(b.start, "hh:mm a")} - {format(b.end, "hh:mm a")}
+                                {format(booking.start, "hh:mm a")} - {format(booking.end, "hh:mm a")}
                               </div>
                             </motion.div>
                           );
                         })}
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
                 </React.Fragment>
-              );
-            })}
+              ));
+            })()}
           </div>
         </CardContent>
       </Card>
