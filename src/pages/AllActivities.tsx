@@ -27,6 +27,7 @@ import {
   Search,
   MoreVertical,
 } from 'lucide-react';
+import { utcDateTimeToLocalParts } from '@/lib/utils';
 
 import {
   DropdownMenu,
@@ -66,7 +67,17 @@ export default function AllActivities() {
       const res = await axios.get(
         '/api/activity/allActivities'
       );
-      setActivities(res.data || []);
+      const normalized = (res.data || []).map((activity) => {
+        const localStart = utcDateTimeToLocalParts(activity.date, activity.fromTime);
+        const localEnd = utcDateTimeToLocalParts(activity.date, activity.toTime);
+        return {
+          ...activity,
+          localDate: localStart?.date || activity.date,
+          localFromTime: localStart?.time || activity.fromTime,
+          localToTime: localEnd?.time || activity.toTime,
+        };
+      });
+      setActivities(normalized);
     } catch (err) {
       console.error('Failed to fetch activities', err);
     } finally {
@@ -277,7 +288,7 @@ export default function AllActivities() {
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
                         <span>
-                          {new Date(activity.date).toLocaleDateString(undefined, {
+                          {new Date(activity.localDate || activity.date).toLocaleDateString(undefined, {
                             year: 'numeric',
                             month: 'short',
                             day: 'numeric',
@@ -285,7 +296,7 @@ export default function AllActivities() {
                         </span>
                         <Clock className="h-4 w-4 text-muted-foreground ml-2" />
                         <span>
-                          {activity.fromTime} - {activity.toTime}
+                          {activity.localFromTime || activity.fromTime} - {activity.localToTime || activity.toTime}
                         </span>
                       </div>
 

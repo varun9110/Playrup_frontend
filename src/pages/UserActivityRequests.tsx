@@ -11,6 +11,7 @@ import {
   Users,
   MoreVertical,
 } from 'lucide-react';
+import { utcDateTimeToLocalParts } from '@/lib/utils';
 
 export default function UserActivityRequests() {
   const [incomingRequests, setIncomingRequests] = useState([]);
@@ -36,19 +37,32 @@ export default function UserActivityRequests() {
       );
 
       const requests = res.data.requests || [];
+      const normalizedRequests = requests.map((request) => {
+        const activity = request.activityId || {};
+        const localStart = utcDateTimeToLocalParts(activity.date, activity.fromTime);
+        const localEnd = utcDateTimeToLocalParts(activity.date, activity.toTime);
+        return {
+          ...request,
+          activityId: {
+            ...activity,
+            localDate: localStart?.date || activity.date,
+            localFromTime: localStart?.time || activity.fromTime,
+            localToTime: localEnd?.time || activity.toTime,
+          },
+        };
+      });
 
       // Filter out past activities
-      const upcomingRequests = requests.filter((request) => {
-        const activityDate = new Date(request.activityId.date);
-        // Include only today or future dates
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // normalize to start of day
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // normalize to start of day
+      const upcomingRequests = normalizedRequests.filter((request) => {
+        const activityDate = new Date(request.activityId.localDate || request.activityId.date);
         return activityDate >= today;
       });
 
       // Optional: sort by activity date ascending
       upcomingRequests.sort(
-        (a, b) => new Date(a.activityId.date).getTime() - new Date(b.activityId.date).getTime()
+        (a, b) => new Date(a.activityId.localDate || a.activityId.date).getTime() - new Date(b.activityId.localDate || b.activityId.date).getTime()
       );
 
       setIncomingRequests(upcomingRequests);
@@ -69,20 +83,33 @@ export default function UserActivityRequests() {
       );
 
       const requests = res.data.requests || [];
+      const normalizedRequests = requests.map((request) => {
+        const activity = request.activityId || {};
+        const localStart = utcDateTimeToLocalParts(activity.date, activity.fromTime);
+        const localEnd = utcDateTimeToLocalParts(activity.date, activity.toTime);
+        return {
+          ...request,
+          activityId: {
+            ...activity,
+            localDate: localStart?.date || activity.date,
+            localFromTime: localStart?.time || activity.fromTime,
+            localToTime: localEnd?.time || activity.toTime,
+          },
+        };
+      });
 
       // Filter out past activities
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const upcomingRequests = requests.filter((request) => {
-        const activityDate = new Date(request.activityId.date);
+      const upcomingRequests = normalizedRequests.filter((request) => {
+        const activityDate = new Date(request.activityId.localDate || request.activityId.date);
         return activityDate >= today;
       });
 
       // Sort by date ascending
       upcomingRequests.sort(
-        (a, b) =>
-          (a, b) => new Date(a.activityId.date).getTime() - new Date(b.activityId.date).getTime()
+        (a, b) => new Date(a.activityId.localDate || a.activityId.date).getTime() - new Date(b.activityId.localDate || b.activityId.date).getTime()
       );
 
       setSentRequests(upcomingRequests);
@@ -246,7 +273,7 @@ export default function UserActivityRequests() {
             <div className="flex items-center gap-1">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <p>
-                {new Date(activityId.date).toLocaleDateString(undefined, {
+                {new Date(activityId.localDate || activityId.date).toLocaleDateString(undefined, {
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric',
@@ -257,7 +284,7 @@ export default function UserActivityRequests() {
             <div>
               <span className="text-muted-foreground">Time</span>
               <p className="font-medium">
-                {activityId.fromTime} – {activityId.toTime}
+                {activityId.localFromTime || activityId.fromTime} – {activityId.localToTime || activityId.toTime}
               </p>
             </div>
 
@@ -356,7 +383,7 @@ export default function UserActivityRequests() {
             <div className="flex items-center gap-1">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <p>
-                {new Date(activityId.date).toLocaleDateString(undefined, {
+                {new Date(activityId.localDate || activityId.date).toLocaleDateString(undefined, {
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric',
@@ -367,7 +394,7 @@ export default function UserActivityRequests() {
             <div>
               <span className="text-muted-foreground">Time</span>
               <p className="font-medium">
-                {activityId.fromTime} – {activityId.toTime}
+                {activityId.localFromTime || activityId.fromTime} – {activityId.localToTime || activityId.toTime}
               </p>
             </div>
 

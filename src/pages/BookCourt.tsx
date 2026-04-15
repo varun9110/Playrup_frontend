@@ -25,7 +25,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import Slider from "react-slider";
-import { capitalizeWords } from "@/lib/utils";
+import { capitalizeWords, combineLocalDateAndTime, localDateTimeToUtcParts } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
 export default function BookCourt() {
@@ -115,15 +115,19 @@ export default function BookCourt() {
     duration
   ) => {
     try {
+      const payload = { academyId, sport, duration };
+      if (date && startTime) {
+        const utcParts = localDateTimeToUtcParts(date, startTime);
+        payload.date = utcParts.date;
+        payload.startTime = utcParts.time;
+      } else {
+        payload.date = date;
+        payload.startTime = startTime;
+      }
+
       const res = await axios.post(
         "/api/booking/check-availability",
-        {
-          academyId,
-          sport,
-          date,
-          startTime,
-          duration,
-        }
+        payload
       );
       setCourts(res.data.courts || []);
     } catch (err) {
@@ -137,7 +141,7 @@ export default function BookCourt() {
   const handleBook = async (courtNumber) => {
     if (!selectedAcademy) return;
 
-    const bookingDateTime = new Date(`${date}T${modalTime}:00`);
+    const bookingDateTime = combineLocalDateAndTime(date, modalTime);
     const now = new Date();
 
     if (bookingDateTime.getTime() < now.getTime()) {
@@ -152,14 +156,15 @@ export default function BookCourt() {
     const userEmail = JSON.parse(localStorage.getItem("user"))?.email;
     const userId = JSON.parse(localStorage.getItem("user"))?.userId;
 
+    const utcParts = localDateTimeToUtcParts(date, modalTime);
     await axios.post("/api/booking/create", {
       userEmail,
       userId,
       academyId: selectedAcademy._id,
       sport,
       courtNumber,
-      date,
-      startTime: modalTime,
+      date: utcParts.date,
+      startTime: utcParts.time,
       duration: modalDuration,
     });
 

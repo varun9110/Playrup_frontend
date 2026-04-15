@@ -8,9 +8,9 @@ import {
   isSameDay,
   addDays,
   subDays,
-  parse,
   addHours
 } from "date-fns";
+import { utcDateTimeToLocalParts } from '@/lib/utils';
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -98,15 +98,15 @@ export default function AcademyBooking() {
       );
 
       const data: Booking[] = res.data.bookings.map((b: any) => {
-        const start = parse(`${b.date} ${b.startTime}`, "yyyy-MM-dd HH:mm", new Date());
-        const end = parse(`${b.date} ${b.endTime}`, "yyyy-MM-dd HH:mm", new Date());
+        const localStart = utcDateTimeToLocalParts(b.date, b.startTime);
+        const localEnd = utcDateTimeToLocalParts(b.date, b.endTime);
 
         return {
           id: b._id,
           court: b.courtNumber,
-          date: start,
-          start,
-          end,
+          date: localStart?.dateObj ?? new Date(`${b.date}T${b.startTime}:00Z`),
+          start: localStart?.dateObj ?? new Date(`${b.date}T${b.startTime}:00Z`),
+          end: localEnd?.dateObj ?? new Date(`${b.date}T${b.endTime}:00Z`),
           userName: b.userId?.name || b.userEmail,
           sport: b.sport,
         };

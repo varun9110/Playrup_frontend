@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, isSameDay } from "date-fns";
+import { localDateTimeToUtcParts, utcDateTimeToLocalParts } from '@/lib/utils';
 import { useParams, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -117,9 +118,11 @@ export default function EditActivity() {
 
         setValue("location", a.city);
         setValue("sport", a.sport);
-        setValue("date", new Date(a.date));
-        setValue("timeStart", a.fromTime);
-        setValue("timeEnd", a.toTime);
+        const localStart = utcDateTimeToLocalParts(a.date, a.fromTime);
+        const localEnd = utcDateTimeToLocalParts(a.date, a.toTime);
+        setValue("date", new Date(localStart?.date || a.date));
+        setValue("timeStart", localStart?.time || a.fromTime);
+        setValue("timeEnd", localEnd?.time || a.toTime);
         setValue("courtNumber", a.courtNumber);
         setValue("skillLevel", a.skillLevel);
         setValue("maxParticipants", a.maxPlayers);
@@ -172,15 +175,17 @@ export default function EditActivity() {
 
   const onSubmit = async (data: FormData) => {
     try {
+      const utcStart = localDateTimeToUtcParts(data.date, data.timeStart);
+      const utcEnd = localDateTimeToUtcParts(data.date, data.timeEnd);
       await axios.put(`/api/activity/updateActivity/${activityId}`, {
         hostEmail: userEmail,
         city: data.location,
         sport: data.sport,
         academyId: data.academyId,
         address: data.address,
-        date: data.date,
-        fromTime: data.timeStart,
-        toTime: data.timeEnd,
+        date: utcStart.date,
+        fromTime: utcStart.time,
+        toTime: utcEnd.time,
         courtNumber: data.courtNumber,
         skillLevel: data.skillLevel,
         maxPlayers: data.maxParticipants,

@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, isSameDay } from "date-fns";
+import { localDateTimeToUtcParts, utcDateTimeToLocalParts } from '@/lib/utils';
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,7 +118,11 @@ export default function HostActivity() {
     axios
       .post("/api/booking/my-bookings", { userEmail, userId })
       .then((res) => {
-        setBookings(res.data.filter((b: any) => new Date(b.date) >= new Date()));
+        const localBookings = (res.data || []).filter((b: any) => {
+          const localDate = utcDateTimeToLocalParts(b.date, b.fromTime)?.dateObj ?? new Date(b.date);
+          return localDate >= new Date();
+        });
+        setBookings(localBookings);
       });
 
     axios
@@ -219,6 +224,8 @@ export default function HostActivity() {
 
   const onSubmit = async (data: FormData) => {
     try {
+      const utcPartsStart = localDateTimeToUtcParts(data.date, data.timeStart);
+      const utcPartsEnd = localDateTimeToUtcParts(data.date, data.timeEnd);
       const payload = {
         hostEmail: userEmail,
         hostId: userId,
@@ -228,9 +235,9 @@ export default function HostActivity() {
         academyId: selectedAcademy?._id || "",
         academy: selectedAcademy?.name || "",
         address: selectedAcademy?.address || "",
-        date: data.date,
-        fromTime: data.timeStart,
-        toTime: data.timeEnd,
+        date: utcPartsStart.date,
+        fromTime: utcPartsStart.time,
+        toTime: utcPartsEnd.time,
         courtNumber: data.courtNumber || "",
         skillLevel: data.skillLevel,
         maxPlayers: data.maxParticipants,

@@ -23,6 +23,7 @@ import {
   Users,
   MoreVertical,
 } from 'lucide-react';
+import { utcDateTimeToLocalParts } from '@/lib/utils';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export default function MyHostedActivities() {
@@ -52,11 +53,20 @@ export default function MyHostedActivities() {
       const past = [];
 
       res.data.activitiesWithEncryptedData.forEach((activity) => {
-        const activityDate = new Date(activity.date);
+        const localStart = utcDateTimeToLocalParts(activity.date, activity.fromTime);
+        const localEnd = utcDateTimeToLocalParts(activity.date, activity.toTime);
+        const normalizedActivity = {
+          ...activity,
+          localDate: localStart?.date || activity.date,
+          localFromTime: localStart?.time || activity.fromTime,
+          localToTime: localEnd?.time || activity.toTime,
+        };
+
+        const activityDate = new Date(normalizedActivity.localDate);
         if (activityDate > new Date()) {
-          upcoming.push(activity);
+          upcoming.push(normalizedActivity);
         } else {
-          past.push(activity);
+          past.push(normalizedActivity);
         }
       });
 
@@ -147,7 +157,7 @@ export default function MyHostedActivities() {
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-muted-foreground" />
             <span>
-              {new Date(activity.date).toLocaleDateString(undefined, {
+              {new Date(activity.localDate || activity.date).toLocaleDateString(undefined, {
                 year: 'numeric',
                 month: 'short',
                 day: 'numeric',
@@ -155,7 +165,7 @@ export default function MyHostedActivities() {
             </span>
             <Clock className="h-4 w-4 text-muted-foreground ml-2" />
             <span>
-              {activity.fromTime} - {activity.toTime}
+              {activity.localFromTime || activity.fromTime} - {activity.localToTime || activity.toTime}
             </span>
           </div>
 
@@ -246,8 +256,8 @@ export default function MyHostedActivities() {
                   {capitalizeWords(activityToCancel.sport)}
                 </p>
                 <p>
-                  {new Date(activityToCancel.date).toLocaleDateString()} ·{' '}
-                  {activityToCancel.fromTime} - {activityToCancel.toTime}
+                  {new Date(activityToCancel.localDate || activityToCancel.date).toLocaleDateString()} ·{' '}
+                  {activityToCancel.localFromTime || activityToCancel.fromTime} - {activityToCancel.localToTime || activityToCancel.toTime}
                 </p>
                 <p>
                   {capitalizeWords(activityToCancel.location) ||

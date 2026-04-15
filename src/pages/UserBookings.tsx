@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from "react-router-dom";
 import axios from 'axios';
+import { localDateTimeToUtcParts, utcDateTimeToLocalParts } from '@/lib/utils';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -63,7 +64,9 @@ export default function UserBookings() {
         const past: any[] = [];
 
         res.data.forEach((b: any) => {
-          const bookingDate = new Date(`${b.date}T${b.startTime}`);
+          const localStart = utcDateTimeToLocalParts(b.date, b.startTime);
+        const localEnd = utcDateTimeToLocalParts(b.date, b.endTime);
+        const bookingDate = localStart?.dateObj ?? new Date(`${b.date}T${b.startTime}:00Z`);
 
           // Calculate duration in minutes
           const [startHour, startMin] = b.startTime.split(":").map(Number);
@@ -74,10 +77,10 @@ export default function UserBookings() {
             id: b._id,
             sport: b.sport,
             court: `Court ${b.courtNumber}`,
-            date: b.date,
-            startTime: b.startTime,
-            endTime: b.endTime,
-            time: `${b.startTime} - ${b.endTime}`,
+            date: localStart?.date ?? b.date,
+            startTime: localStart?.time ?? b.startTime,
+            endTime: localEnd?.time ?? b.endTime,
+            time: `${localStart?.time ?? b.startTime} - ${localEnd?.time ?? b.endTime}`,
             academy: b.academyId.name,
             address: b.academyId.address,
             city: b.academyId.city,
@@ -153,15 +156,20 @@ export default function UserBookings() {
 
   const fetchCourtAvailability = async (academyId: string, sport: string, date: string, time?: string) => {
   try {
+    const localTime = time || modalTime;
+    const payload = { academyId, sport, duration: bookingToModify?.duration || 60 };
+    if (date && localTime) {
+      const utcParts = localDateTimeToUtcParts(date, localTime);
+      payload.date = utcParts.date;
+      payload.startTime = utcParts.time;
+    } else {
+      payload.date = date;
+      payload.startTime = localTime;
+    }
+
     const res = await axios.post(
       "/api/booking/check-availability",
-      {
-        academyId,
-        sport,
-        date,
-        startTime: time || modalTime, // use passed time if available
-        duration: bookingToModify?.duration || 60,
-      }
+      payload
     );
     setCourts(res.data.courts || []);
     calculatePriceDiff(res.data.courts || []);
@@ -185,6 +193,7 @@ export default function UserBookings() {
       const userEmail = JSON.parse(localStorage.getItem("user")!).email;
       const userId = JSON.parse(localStorage.getItem("user"))?.userId;
 
+      const utcParts = localDateTimeToUtcParts(modalDate, modalTime);
       const res = await axios.patch(
         "/api/booking/modify-booking",
         {
@@ -194,8 +203,8 @@ export default function UserBookings() {
           academyId: bookingToModify.academyId,
           sport: bookingToModify.sport,
           courtNumber,
-          date: modalDate,
-          startTime: modalTime,
+          date: utcParts.date,
+          startTime: utcParts.time,
           duration: bookingToModify.duration,
         }
       );

@@ -20,6 +20,7 @@ import {
   Activity,
   User
 } from 'lucide-react';
+import { utcDateTimeToLocalParts } from '@/lib/utils';
 
 import { capitalizeWords } from '@/lib/utils';
 
@@ -66,11 +67,21 @@ export default function UserDashboard() {
         );
 
         const data = response.data;
+        const normalizeDateTimeItem = (item) => {
+          const localStart = utcDateTimeToLocalParts(item.date, item.startTime || item.fromTime);
+          const localEnd = utcDateTimeToLocalParts(item.date, item.endTime || item.toTime);
+          return {
+            ...item,
+            localDate: localStart?.date || item.date,
+            localStartTime: localStart?.time || item.startTime || item.fromTime,
+            localEndTime: localEnd?.time || item.endTime || item.toTime,
+          };
+        };
 
-        setUpcomingBookings(data.upcomingBookings || []);
+        setUpcomingBookings((data.upcomingBookings || []).map(normalizeDateTimeItem));
         setBookingCount(data.upcomingBookingsCount || 0);
         setActivitiesJoined(data.pastActivitiesCount || 0);
-        setRecentPastActivities(data.recentPastActivities || []);
+        setRecentPastActivities((data.recentPastActivities || []).map(normalizeDateTimeItem));
         setPastHostedActivitiesCount(data.pastHostedActivitiesCount || 0);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -225,11 +236,15 @@ export default function UserDashboard() {
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
-                          {booking.date.split('-').reverse().join('/')}
+                          {new Date(booking.localDate || booking.date).toLocaleDateString(undefined, {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                          })}
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="h-4 w-4" />
-                          {booking.startTime} - {booking.endTime}
+                          {booking.localStartTime || booking.startTime} - {booking.localEndTime || booking.endTime}
                         </span>
                       </div>
                       <div className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -270,11 +285,15 @@ export default function UserDashboard() {
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
-                          {activity.date?.split('T')[0].split('-').reverse().join('/')}
+                          {new Date(activity.localDate || activity.date).toLocaleDateString(undefined, {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                          })}
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="h-4 w-4" />
-                          {activity.fromTime} - {activity.toTime}
+                          {activity.localStartTime || activity.fromTime} - {activity.localEndTime || activity.toTime}
                         </span>
                       </div>
                       <div className="flex items-center gap-1 text-sm text-muted-foreground">
