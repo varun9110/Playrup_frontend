@@ -3,7 +3,8 @@ import { Navigate } from 'react-router-dom';
 
 export default function PrivateRoute({ children, requiredRole }) {
   const token = localStorage.getItem('token');
-  const user = JSON.parse(localStorage.getItem('user'));
+  const userStorage = localStorage.getItem('user');
+  const user = userStorage ? JSON.parse(userStorage) : null;
 
   if (!token || !user) return <Navigate to="/" />;
 

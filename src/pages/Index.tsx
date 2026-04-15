@@ -1,4 +1,3 @@
-import bcrypt from "bcryptjs";
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import LoginPage from './LoginPage';
@@ -8,9 +7,8 @@ const Index = () => {
 
   const handleEmailLogin = async (data: { email: string; phone: string; password: string }) => {
     try {
-      const abcd = { ...data, password: bcrypt.hash(data.password, 10) };
-      console.log("Login data submitted:", abcd);
-      const res = await axios.post('http://localhost:5000/api/auth/login', data);
+      console.log("Login data submitted:", data);
+      const res = await axios.post('/auth/login', data);
       const { token, ...userData } = res.data;
 
       localStorage.setItem('token', token);

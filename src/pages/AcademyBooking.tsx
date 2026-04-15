@@ -62,7 +62,7 @@ export default function AcademyBooking() {
   const fetchAcademies = async () => {
     try {
       const res = await axios.post(
-        "http://localhost:5000/api/academy/user-academies",
+        "/api/academy/user-academies",
         { userId }
       );
 
@@ -88,7 +88,7 @@ export default function AcademyBooking() {
 
     try {
       const res = await axios.post(
-        "http://localhost:5000/api/booking/academy-bookings",
+        "/api/booking/academy-bookings",
         {
           academyId: selectedAcademy,
           startDate,

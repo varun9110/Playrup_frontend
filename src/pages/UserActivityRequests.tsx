@@ -31,7 +31,7 @@ export default function UserActivityRequests() {
     try {
       setLoading(true);
       const res = await axios.post(
-        'http://localhost:5000/api/request/hosted/pending-requests',
+        '/api/request/hosted/pending-requests',
         { userEmail, userId }
       );
 
@@ -64,7 +64,7 @@ export default function UserActivityRequests() {
       setLoading(true);
 
       const res = await axios.post(
-        'http://localhost:5000/api/request/my-requests',
+        '/api/request/my-requests',
         { userEmail, userId }
       );
 
@@ -110,7 +110,7 @@ export default function UserActivityRequests() {
       );
 
       const res = await axios.post(
-        'http://localhost:5000/api/request/approve-request',
+        '/api/request/approve-request',
         {
           requestId,
           activityId,
@@ -150,7 +150,7 @@ export default function UserActivityRequests() {
       );
 
       const res = await axios.post(
-        'http://localhost:5000/api/request/reject-request',
+        '/api/request/reject-request',
         {
           requestId,
           activityId,
@@ -190,7 +190,7 @@ export default function UserActivityRequests() {
       );
 
       const res = await axios.post(
-        'http://localhost:5000/api/request/withdraw-request',
+        '/api/request/withdraw-request',
         {
           requestId,
           activityId,
@@ -458,3 +458,4 @@ export default function UserActivityRequests() {
     </div>
   );
 }
+

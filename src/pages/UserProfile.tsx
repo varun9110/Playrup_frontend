@@ -28,7 +28,7 @@ export default function UserProfile() {
         const fetchUserDetails = async () => {
             try {
                 const response = await axios.post(
-                    'http://localhost:5000/api/user/all-sports',
+                    '/api/user/all-sports',
                     { userEmail, userId }
                     // Uncomment if your backend uses auth
                     // { headers: { Authorization: `Bearer ${token}` } }

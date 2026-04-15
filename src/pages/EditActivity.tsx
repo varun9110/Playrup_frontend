@@ -110,7 +110,7 @@ export default function EditActivity() {
 
     const loadActivity = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/activity/${activityId}`);
+        const res = await axios.get(`/api/activity/${activityId}`);
         if (!isMounted) return;
         const a = res.data?.activity;
         if (!a) throw new Error("Activity not found");
@@ -141,19 +141,19 @@ export default function EditActivity() {
   /* ---------------- Fetch Lookups ---------------- */
 
   useEffect(() => {
-    axios.get("http://localhost:5000/api/academy/locations")
+    axios.get("/api/academy/locations")
       .then(res => setCities(res.data.uniqueCities || []));
   }, []);
 
   useEffect(() => {
     if (!selectedLocation) return;
-    axios.get(`http://localhost:5000/api/academy/sports/${selectedLocation}`)
+    axios.get(`/api/academy/sports/${selectedLocation}`)
       .then(res => setSportsList(res.data.sports || []));
   }, [selectedLocation]);
 
   useEffect(() => {
     if (!selectedLocation || !selectedSport) return;
-    axios.get("http://localhost:5000/api/academy/getAcademies", {
+    axios.get("/api/academy/getAcademies", {
       params: { city: selectedLocation, sport: selectedSport }
     }).then(res => {
       setAcademiesList(res.data.academies || []);
@@ -163,7 +163,7 @@ export default function EditActivity() {
 
   useEffect(() => {
     if (!selectedAcademy || !selectedSport) return;
-    axios.get("http://localhost:5000/api/academy/getCourts", {
+    axios.get("/api/academy/getCourts", {
       params: { email: selectedAcademy.email, sport: selectedSport }
     }).then(res => setCourts(res.data.courts || []));
   }, [selectedAcademy, selectedSport]);
@@ -172,7 +172,7 @@ export default function EditActivity() {
 
   const onSubmit = async (data: FormData) => {
     try {
-      await axios.put(`http://localhost:5000/api/activity/updateActivity/${activityId}`, {
+      await axios.put(`/api/activity/updateActivity/${activityId}`, {
         hostEmail: userEmail,
         city: data.location,
         sport: data.sport,
@@ -342,3 +342,4 @@ export default function EditActivity() {
     </div>
   );
 }
+

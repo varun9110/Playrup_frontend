@@ -64,7 +64,7 @@ export default function AllActivities() {
     setLoading(true);
     try {
       const res = await axios.get(
-        'http://localhost:5000/api/activity/allActivities'
+        '/api/activity/allActivities'
       );
       setActivities(res.data || []);
     } catch (err) {
@@ -96,7 +96,7 @@ export default function AllActivities() {
     if (!userEmail) return;
 
     try {
-      const res = await axios.post('http://localhost:5000/api/activity/requestJoin', {
+      const res = await axios.post('/api/activity/requestJoin', {
         activityId,
         userEmail,
         userId,
@@ -140,7 +140,7 @@ export default function AllActivities() {
     if (!activityToCancel) return;
 
     try {
-      const res = await axios.post('http://localhost:5000/api/activity/cancelActivity', {
+      const res = await axios.post('/api/activity/cancelActivity', {
         activityId: activityToCancel._id,
         hostEmail: userEmail,
         hostId: userId,
@@ -380,3 +380,4 @@ export default function AllActivities() {
     </div>
   );
 }
+

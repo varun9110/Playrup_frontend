@@ -65,7 +65,7 @@ export default function BookCourt() {
   useEffect(() => {
     const fetchCities = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/academy/locations");
+        const res = await axios.get("/api/academy/locations");
         if (res.data?.uniqueCities) setCities(res.data.uniqueCities);
       } catch (err) {
         console.error(err);
@@ -83,7 +83,7 @@ export default function BookCourt() {
       }
       try {
         const res = await axios.get(
-          `http://localhost:5000/api/academy/sports/${city}`
+          `/api/academy/sports/${city}`
         );
         setSportsList(res.data?.sports || []);
         setSport("");
@@ -97,7 +97,7 @@ export default function BookCourt() {
   const handleSearch = async () => {
     try {
       const res = await axios.post(
-        "http://localhost:5000/api/booking/search",
+        "/api/booking/search",
         { city, sport, date }
       );
       setAcademies(res.data.academies || []);
@@ -116,7 +116,7 @@ export default function BookCourt() {
   ) => {
     try {
       const res = await axios.post(
-        "http://localhost:5000/api/booking/check-availability",
+        "/api/booking/check-availability",
         {
           academyId,
           sport,
@@ -152,7 +152,7 @@ export default function BookCourt() {
     const userEmail = JSON.parse(localStorage.getItem("user"))?.email;
     const userId = JSON.parse(localStorage.getItem("user"))?.userId;
 
-    await axios.post("http://localhost:5000/api/booking/create", {
+    await axios.post("/api/booking/create", {
       userEmail,
       userId,
       academyId: selectedAcademy._id,
@@ -399,3 +399,4 @@ export default function BookCourt() {
     </div>
   );
 }
+

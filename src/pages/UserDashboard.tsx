@@ -59,7 +59,7 @@ export default function UserDashboard() {
     const fetchDashboardData = async () => {
       try {
         const response = await axios.post(
-          'http://localhost:5000/api/dashboard/dashboard-data',
+          '/api/dashboard/dashboard-data',
           { userEmail, userId }
           // Uncomment if your backend uses auth
           // { headers: { Authorization: `Bearer ${token}` } }

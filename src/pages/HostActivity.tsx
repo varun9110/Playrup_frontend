@@ -115,13 +115,13 @@ export default function HostActivity() {
 
   useEffect(() => {
     axios
-      .post("http://localhost:5000/api/booking/my-bookings", { userEmail, userId })
+      .post("/api/booking/my-bookings", { userEmail, userId })
       .then((res) => {
         setBookings(res.data.filter((b: any) => new Date(b.date) >= new Date()));
       });
 
     axios
-      .get("http://localhost:5000/api/academy/locations")
+      .get("/api/academy/locations")
       .then((res) => setCities(res.data?.uniqueCities || []))
       .catch(console.error);
   }, []);
@@ -136,7 +136,7 @@ export default function HostActivity() {
     }
 
     axios
-      .get(`http://localhost:5000/api/academy/sports/${selectedLocation}`)
+      .get(`/api/academy/sports/${selectedLocation}`)
       .then((res) => {
         setSportsList(res.data?.sports || []);
         setValue("sport", "");
@@ -156,7 +156,7 @@ export default function HostActivity() {
     }
 
     axios
-      .get("http://localhost:5000/api/academy/getAcademies", {
+      .get("/api/academy/getAcademies", {
         params: { city: selectedLocation, sport: selectedSport },
       })
       .then((res) => {
@@ -179,7 +179,7 @@ export default function HostActivity() {
     }
 
     axios
-      .get("http://localhost:5000/api/academy/getCourts", {
+      .get("/api/academy/getCourts", {
         params: { email: selectedAcademy.email, sport: selectedSport },
       })
       .then((res) => {
@@ -237,7 +237,7 @@ export default function HostActivity() {
         pricePerParticipant: data.price || 0,
       };
 
-      const res = await axios.post("http://localhost:5000/api/activity/createActivity", payload);
+      const res = await axios.post("/api/activity/createActivity", payload);
 
       if (res.data.success) {
         toast({ title: "Activity created 🎉" });
@@ -471,3 +471,4 @@ export default function HostActivity() {
     </div>
   );
 }
+

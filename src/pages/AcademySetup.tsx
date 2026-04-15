@@ -36,7 +36,7 @@ export default function AcademySetup() {
   useEffect(() => {
     const fetchAcademyDetails = async () => {
       try {
-        const res = await axios.post("http://localhost:5000/api/academy/getDetails", {
+        const res = await axios.post("/api/academy/getDetails", {
           email,
           userId,
         });
@@ -128,7 +128,7 @@ export default function AcademySetup() {
       pricing: sportsConfig[sport].pricing,
     }));
 
-    await axios.post("http://localhost:5000/api/academy/configure", {
+    await axios.post("/api/academy/configure", {
       email,
       userId,
       sports,
@@ -263,3 +263,4 @@ export default function AcademySetup() {
     </div>
   );
 }
+

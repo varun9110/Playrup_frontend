@@ -44,7 +44,7 @@ export default function MyHostedActivities() {
 
     try {
       const res = await axios.post(
-        'http://localhost:5000/api/activity/userActivities',
+        '/api/activity/userActivities',
         { userEmail, userId }
       );
 
@@ -85,7 +85,7 @@ export default function MyHostedActivities() {
     if (!activityToCancel) return;
 
     try {
-      const res = await axios.post('http://localhost:5000/api/activity/cancelActivity', {
+      const res = await axios.post('/api/activity/cancelActivity', {
         activityId: activityToCancel._id,
         hostEmail: userEmail,
         hostId: userId,
@@ -270,3 +270,4 @@ export default function MyHostedActivities() {
     </div>
   );
 }
+

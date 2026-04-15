@@ -54,7 +54,7 @@ export default function UserBookings() {
         const userEmail = JSON.parse(localStorage.getItem("user")!).email;
         const userId = JSON.parse(localStorage.getItem("user"))?.userId;
         const res = await axios.post(
-          "http://localhost:5000/api/booking/my-bookings",
+          "/api/booking/my-bookings",
           { userEmail, userId }
         );
 
@@ -123,7 +123,7 @@ export default function UserBookings() {
       const userEmail = JSON.parse(localStorage.getItem("user")!).email;
       const userId = JSON.parse(localStorage.getItem("user"))?.userId;
       const res = await axios.post(
-        "http://localhost:5000/api/booking/cancel-booking",
+        "/api/booking/cancel-booking",
         { bookingId: bookingToCancel.id, userEmail, userId }
       );
 
@@ -154,7 +154,7 @@ export default function UserBookings() {
   const fetchCourtAvailability = async (academyId: string, sport: string, date: string, time?: string) => {
   try {
     const res = await axios.post(
-      "http://localhost:5000/api/booking/check-availability",
+      "/api/booking/check-availability",
       {
         academyId,
         sport,
@@ -186,7 +186,7 @@ export default function UserBookings() {
       const userId = JSON.parse(localStorage.getItem("user"))?.userId;
 
       const res = await axios.patch(
-        "http://localhost:5000/api/booking/modify-booking",
+        "/api/booking/modify-booking",
         {
           bookingId: bookingToModify.id,  // <-- send booking ID
           userEmail,
@@ -544,3 +544,4 @@ function DetailRow({ label, value }: any) {
     </div>
   );
 }
+
