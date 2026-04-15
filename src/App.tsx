@@ -41,7 +41,7 @@ import AcademyBooking from "./pages/AcademyBooking";
 // import AllActivities from "./pages/PlayC/AllActivities";
 // import MyHostedActivities from "./pages/PlayC/MyHostedActivities";
 // import MyRequests from "./pages/PlayC/MyRequests";
-import AdminBookings from "./pages/PlayC/AdminBookings";
+// import AdminBookings from "./pages/PlayC/AdminBookings";
 
 
 const queryClient = new QueryClient();
@@ -92,7 +92,7 @@ const App = () => (
           {/* <Route path="/playc/activities" element={<AllActivities />} /> */}
           {/* <Route path="/playc/my-hosted" element={<MyHostedActivities />} /> */}
           {/* <Route path="/playc/my-requests" element={<MyRequests />} /> */}
-          <Route path="/playc/admin/bookings" element={<AdminBookings />} />
+          {/* <Route path="/playc/admin/bookings" element={<AdminBookings />} /> */}
 
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

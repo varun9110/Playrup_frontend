@@ -73,6 +73,7 @@ export default function UserDashboard() {
           return {
             ...item,
             localDate: localStart?.date || item.date,
+            localDateObj: localStart?.dateObj,
             localStartTime: localStart?.time || item.startTime || item.fromTime,
             localEndTime: localEnd?.time || item.endTime || item.toTime,
           };
@@ -236,7 +237,7 @@ export default function UserDashboard() {
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
-                          {new Date(booking.localDate || booking.date).toLocaleDateString(undefined, {
+                          {(booking.localDateObj || new Date(booking.date)).toLocaleDateString(undefined, {
                             year: 'numeric',
                             month: '2-digit',
                             day: '2-digit',
@@ -285,7 +286,7 @@ export default function UserDashboard() {
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
-                          {new Date(activity.localDate || activity.date).toLocaleDateString(undefined, {
+                          {(activity.localDateObj || new Date(activity.date)).toLocaleDateString(undefined, {
                             year: 'numeric',
                             month: '2-digit',
                             day: '2-digit',

@@ -73,6 +73,7 @@ export default function AllActivities() {
         return {
           ...activity,
           localDate: localStart?.date || activity.date,
+          localDateObj: localStart?.dateObj,
           localFromTime: localStart?.time || activity.fromTime,
           localToTime: localEnd?.time || activity.toTime,
         };
@@ -288,7 +289,7 @@ export default function AllActivities() {
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
                         <span>
-                          {new Date(activity.localDate || activity.date).toLocaleDateString(undefined, {
+                          {(activity.localDateObj || new Date(activity.date)).toLocaleDateString(undefined, {
                             year: 'numeric',
                             month: 'short',
                             day: 'numeric',
@@ -367,8 +368,8 @@ export default function AllActivities() {
                   {capitalizeWords(activityToCancel.sport)}
                 </p>
                 <p>
-                  {new Date(activityToCancel.date).toLocaleDateString()} ·{' '}
-                  {activityToCancel.fromTime} - {activityToCancel.toTime}
+                  {(activityToCancel.localDateObj || new Date(activityToCancel.date)).toLocaleDateString()} ·{' '}
+                  {activityToCancel.localFromTime || activityToCancel.fromTime} - {activityToCancel.localToTime || activityToCancel.toTime}
                 </p>
                 <p>
                   {capitalizeWords(activityToCancel.location) ||

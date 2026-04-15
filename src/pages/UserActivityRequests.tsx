@@ -46,6 +46,7 @@ export default function UserActivityRequests() {
           activityId: {
             ...activity,
             localDate: localStart?.date || activity.date,
+            localDateObj: localStart?.dateObj,
             localFromTime: localStart?.time || activity.fromTime,
             localToTime: localEnd?.time || activity.toTime,
           },
@@ -92,6 +93,7 @@ export default function UserActivityRequests() {
           activityId: {
             ...activity,
             localDate: localStart?.date || activity.date,
+            localDateObj: localStart?.dateObj,
             localFromTime: localStart?.time || activity.fromTime,
             localToTime: localEnd?.time || activity.toTime,
           },
@@ -273,7 +275,7 @@ export default function UserActivityRequests() {
             <div className="flex items-center gap-1">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <p>
-                {new Date(activityId.localDate || activityId.date).toLocaleDateString(undefined, {
+                {(activityId.localDateObj || new Date(activityId.date)).toLocaleDateString(undefined, {
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric',
@@ -383,7 +385,7 @@ export default function UserActivityRequests() {
             <div className="flex items-center gap-1">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <p>
-                {new Date(activityId.localDate || activityId.date).toLocaleDateString(undefined, {
+                {(activityId.localDateObj || new Date(activityId.date)).toLocaleDateString(undefined, {
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric',

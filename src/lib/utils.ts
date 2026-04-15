@@ -7,6 +7,24 @@ export function cn(...inputs: ClassValue[]) {
 
 const pad2 = (value: number) => String(value).padStart(2, '0')
 
+// Convert 12-hour format (e.g., "6:00 AM") to 24-hour format (e.g., "06:00")
+export function convert12To24HourFormat(time12: string): string {
+  const match = time12.match(/(\d+):(\d+)\s*(AM|PM)/i)
+  if (!match) return time12 // Return as-is if doesn't match format
+  
+  let hours = parseInt(match[1])
+  const minutes = match[2]
+  const period = match[3].toUpperCase()
+  
+  if (period === 'PM' && hours !== 12) {
+    hours += 12
+  } else if (period === 'AM' && hours === 12) {
+    hours = 0
+  }
+  
+  return `${pad2(hours)}:${minutes}`
+}
+
 export function formatDateForInput(date: Date) {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
 }
@@ -21,7 +39,9 @@ export function combineLocalDateAndTime(date: string, time: string) {
 
 export function localDateTimeToUtcParts(date: string | Date, time: string) {
   const dateValue = date instanceof Date ? formatDateForInput(date) : date
-  const local = combineLocalDateAndTime(dateValue, time)
+  // Convert 12-hour format (e.g., "6:00 AM") to 24-hour format if needed
+  const time24 = time.includes('AM') || time.includes('PM') ? convert12To24HourFormat(time) : time
+  const local = combineLocalDateAndTime(dateValue, time24)
   const utcIso = local.toISOString()
   return {
     date: utcIso.slice(0, 10),
@@ -32,13 +52,18 @@ export function localDateTimeToUtcParts(date: string | Date, time: string) {
 
 export function utcDateTimeToLocalParts(date: string, time: string) {
   if (!date || !time) return null
-  const utcIso = date.includes('T') ? date : `${date}T${time}:00Z`
-  const local = new Date(utcIso)
+  // If date is a full ISO string, extract just the date part
+  const dateOnly = date.includes('T') ? date.split('T')[0] : date
+  // Convert 12-hour format (e.g., "9:00 AM") to 24-hour format if needed
+  const time24 = time.includes('AM') || time.includes('PM') ? convert12To24HourFormat(time) : time
+  // Add 'Z' to treat as UTC - the backend returns UTC times that need conversion to browser's local timezone
+  const utcIso = `${dateOnly}T${time24}:00Z`
+  const utcDate = new Date(utcIso)
   return {
-    date: formatDateForInput(local),
-    time: formatTimeForInput(local),
-    dateObj: local,
-    iso: local.toISOString(),
+    date: formatDateForInput(utcDate),
+    time: formatTimeForInput(utcDate),
+    dateObj: utcDate,
+    iso: utcDate.toISOString(),
   }
 }
 
