@@ -411,7 +411,7 @@ export default function MyHostedActivities() {
     }
   };
 
-  const renderActivityCard = (activity: Activity, showChatButton = false) => (
+  const renderActivityCard = (activity: Activity) => (
     <Card key={activity._id} className="hover:shadow-lg transition-shadow">
       <CardHeader>
         <div className="flex items-start justify-between">
@@ -489,16 +489,14 @@ export default function MyHostedActivities() {
           </div>
         </div>
 
-        {showChatButton && (
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => openChatRoom(activity)}
-          >
-            <MessageCircle className="h-4 w-4 mr-2" />
-            Chat with Players
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => openChatRoom(activity)}
+        >
+          <MessageCircle className="h-4 w-4 mr-2" />
+          Chat with Players
+        </Button>
       </CardContent>
     </Card>
   );
@@ -520,7 +518,7 @@ export default function MyHostedActivities() {
 
           <TabsContent value="upcoming" className="space-y-4">
             {upcomingActivities.length
-              ? upcomingActivities.map((activity) => renderActivityCard(activity, true))
+              ? upcomingActivities.map(renderActivityCard)
               : (
                 <Card>
                   <CardContent className="p-6 text-center">
@@ -532,7 +530,7 @@ export default function MyHostedActivities() {
 
           <TabsContent value="past" className="space-y-4">
             {pastActivities.length
-              ? pastActivities.map((activity) => renderActivityCard(activity))
+              ? pastActivities.map(renderActivityCard)
               : (
                 <Card>
                   <CardContent className="p-6 text-center">
