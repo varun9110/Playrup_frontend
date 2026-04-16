@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Navbar } from '@/components/layout';
 import {
   Card,
   CardContent,
@@ -25,6 +26,9 @@ import {
   MapPin,
   Users,
   Search,
+  Activity,
+  Compass,
+  Zap,
   MoreVertical,
 } from 'lucide-react';
 import { utcDateTimeToLocalParts } from '@/lib/utils';
@@ -60,6 +64,19 @@ export default function AllActivities() {
   const userEmail = JSON.parse(localStorage.getItem('user'))?.email;
   const userId = JSON.parse(localStorage.getItem("user"))?.userId;
 
+  const getComparableValue = (value) => {
+    if (typeof value === 'string') return value;
+    return value?.content || '';
+  };
+
+  const currentUserId = getComparableValue(userId);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/');
+  };
+
 
   const fetchActivities = async () => {
     setLoading(true);
@@ -94,11 +111,14 @@ export default function AllActivities() {
 
   // Helper functions
   const isJoined = (activity) => {
-    return activity.joinedPlayers?.some((player) => player.content === userId.content);
+    return activity.joinedPlayers?.some((player) => getComparableValue(player) === currentUserId);
   };
 
   const isRequested = (activity) => {
-    return activity.pendingRequests?.some((player) => player.content === userId.content);
+    return activity.pendingRequests?.some((player) => {
+      const comparablePlayer = getComparableValue(player);
+      return comparablePlayer === currentUserId || player === userEmail;
+    });
   };
 
 
@@ -186,73 +206,143 @@ export default function AllActivities() {
 
   const sports = ['Basketball', 'Tennis', 'Badminton', 'Volleyball', 'Football'];
 
+  const hostedCount = activities.filter((activity) => getComparableValue(activity?.host?.id) === currentUserId).length;
+  const joinedCount = activities.filter((activity) => isJoined(activity)).length;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-accent/5 p-4">
-      <div className="container mx-auto max-w-6xl">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold mb-2">Browse Activities</h1>
-          <p className="text-muted-foreground">
-            Find and join sports activities in your area
-          </p>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
+      <Navbar onLogout={handleLogout} />
+
+      <div className="container mx-auto px-4 py-8 md:py-12 max-w-7xl">
+        <div className="mb-10">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8">
+            <div>
+              <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-2">
+                Browse Activities
+              </h1>
+              <p className="text-slate-600 text-lg">
+                Find, join, and manage sports activities near you
+              </p>
+            </div>
+            <div className="flex gap-3 flex-wrap md:flex-nowrap">
+              <Button className="rounded-lg h-11" onClick={() => navigate('/host-activity')}>
+                <Zap className="w-4 h-4 mr-2" />
+                Host Activity
+              </Button>
+              <Button variant="outline" className="rounded-lg h-11" onClick={() => navigate('/dashboard')}>
+                Back to Dashboard
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+            <Card className="overflow-hidden">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-3 bg-blue-100 rounded-lg">
+                    <Activity className="w-6 h-6 text-blue-600" />
+                  </div>
+                </div>
+                <p className="text-slate-600 text-sm font-medium mb-2">Total Activities</p>
+                <p className="text-3xl font-bold text-slate-900">{activities.length}</p>
+              </CardContent>
+            </Card>
+
+            <Card className="overflow-hidden">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-3 bg-green-100 rounded-lg">
+                    <Users className="w-6 h-6 text-green-600" />
+                  </div>
+                </div>
+                <p className="text-slate-600 text-sm font-medium mb-2">Joined by You</p>
+                <p className="text-3xl font-bold text-slate-900">{joinedCount}</p>
+              </CardContent>
+            </Card>
+
+            <Card className="overflow-hidden">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-3 bg-amber-100 rounded-lg">
+                    <Compass className="w-6 h-6 text-amber-600" />
+                  </div>
+                </div>
+                <p className="text-slate-600 text-sm font-medium mb-2">Hosted by You</p>
+                <p className="text-3xl font-bold text-slate-900">{hostedCount}</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="mb-6 overflow-hidden border-slate-200">
+            <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50 border-b">
+              <CardTitle className="text-slate-900">Find Activities</CardTitle>
+              <CardDescription>Filter by sport, city, or location</CardDescription>
+            </CardHeader>
+            <CardContent className="p-5">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    placeholder="Search by sport, city or location..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+
+                <Select value={selectedSport} onValueChange={setSelectedSport}>
+                  <SelectTrigger className="w-full md:w-52">
+                    <SelectValue placeholder="All Sports" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sports</SelectItem>
+                    {sports.map((sport) => (
+                      <SelectItem key={sport} value={sport.toLowerCase()}>
+                        {sport}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardContent className="p-4">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by sport, city or location..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-
-              <Select value={selectedSport} onValueChange={setSelectedSport}>
-                <SelectTrigger className="w-full md:w-48">
-                  <SelectValue placeholder="All Sports" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Sports</SelectItem>
-                  {sports.map((sport) => (
-                    <SelectItem key={sport} value={sport.toLowerCase()}>
-                      {sport}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Activities */}
         {loading ? (
-          <p className="text-center text-muted-foreground">
-            Loading activities...
-          </p>
+          <Card>
+            <CardContent className="p-10 text-center text-slate-500">
+              Loading activities...
+            </CardContent>
+          </Card>
+        ) : filteredActivities.length === 0 ? (
+          <Card>
+            <CardContent className="p-10 text-center">
+              <p className="text-slate-500 mb-4">No activities found for the selected filters.</p>
+              <Button variant="outline" onClick={() => { setSearchTerm(''); setSelectedSport('all'); }}>
+                Reset Filters
+              </Button>
+            </CardContent>
+          </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredActivities.map((activity) => {
-              const isHost = activity.host.id.content === userId.content;
+              const isHost = getComparableValue(activity?.host?.id) === currentUserId;
 
               return (
-                <Card key={activity._id} className="hover:shadow-lg transition-shadow">
+                <Card key={activity._id} className="overflow-hidden border-slate-200 hover:border-slate-300 hover:shadow-md transition-all">
                   <CardHeader>
-                    <div className="flex items-start justify-between">
+                    <div className="flex items-start justify-between gap-3">
                       <div>
-                        <CardTitle className="text-lg">
+                        <CardTitle className="text-lg text-slate-900">
                           {capitalizeWords(activity.sport)}
                         </CardTitle>
                         <CardDescription className="mt-1">
-                          Hosted by {activity.host.name}
+                          Hosted by {capitalizeWords(activity.host?.name || 'Host')}
                         </CardDescription>
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline">
+                        <Badge variant="outline" className="border-slate-300 text-slate-700">
                           {capitalizeWords(activity.city)}
                         </Badge>
 
@@ -285,9 +375,9 @@ export default function AllActivities() {
                   </CardHeader>
 
                   <CardContent className="space-y-4">
-                    <div className="space-y-2 text-sm">
+                    <div className="space-y-2 text-sm text-slate-600">
                       <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        <Calendar className="h-4 w-4 text-blue-600" />
                         <span>
                           {(activity.localDateObj || new Date(activity.date)).toLocaleDateString(undefined, {
                             year: 'numeric',
@@ -295,14 +385,17 @@ export default function AllActivities() {
                             day: 'numeric',
                           })}
                         </span>
-                        <Clock className="h-4 w-4 text-muted-foreground ml-2" />
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-blue-600" />
                         <span>
                           {activity.localFromTime || activity.fromTime} - {activity.localToTime || activity.toTime}
                         </span>
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-muted-foreground" />
+                        <MapPin className="h-4 w-4 text-blue-600" />
                         <span>
                           {capitalizeWords(activity.location) ||
                             capitalizeWords(activity.address)}
@@ -310,18 +403,18 @@ export default function AllActivities() {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <Users className="h-4 w-4 text-blue-600" />
                         <span>
                           {activity.joinedPlayers?.length || 0}/
                           {activity.maxPlayers} players
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 pt-1">
                         <Badge variant="secondary" className="text-xs py-1 px-2">
                           {activity.skillLevel ? capitalizeWords(activity.skillLevel) : 'Any'}
                         </Badge>
-                        <span className="text-muted-foreground text-xs">Skill Level</span>
+                        <span className="text-slate-500 text-xs">Skill Level</span>
                       </div>
                     </div>
 
@@ -350,7 +443,7 @@ export default function AllActivities() {
 
       {/* ================= CANCEL CONFIRMATION MODAL ================= */}
       <Dialog open={openCancel} onOpenChange={setOpenCancel}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md border-slate-200">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-destructive">
               Cancel Activity?

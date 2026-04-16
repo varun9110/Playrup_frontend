@@ -52,7 +52,6 @@ export default function Navbar({ onLogout }: NavbarProps) {
   };
 
   const mainNavItems = [
-    { label: 'Dashboard', path: '/dashboard', roles: ['user'] },
     { label: 'Browse Activities', path: '/activities', roles: ['user'] },
     { label: 'My Bookings', path: '/my-bookings', roles: ['user'] },
     { label: 'Host Activity', path: '/host-activity', roles: ['user'] },
@@ -67,7 +66,7 @@ export default function Navbar({ onLogout }: NavbarProps) {
       <div className="container mx-auto px-4 max-w-7xl">
         <div className="flex items-center justify-between h-16 md:h-20">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 font-bold text-xl">
+          <Link to="/dashboard" className="flex items-center gap-2 font-bold text-xl">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold">
               P
             </div>

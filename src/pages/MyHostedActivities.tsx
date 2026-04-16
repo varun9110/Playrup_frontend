@@ -28,11 +28,20 @@ import {
   Loader2,
   MoreVertical,
   MessageCircle,
+  Trophy,
+  Zap,
+  History,
+  PlusCircle,
+  Star,
+  XCircle,
+  Shield,
+  UserCheck,
 } from 'lucide-react';
 import { utcDateTimeToLocalParts } from '@/lib/utils';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
+import { Navbar } from '@/components/layout';
 
 type EncryptedValue = {
   iv: string;
@@ -45,6 +54,11 @@ type FeedbackStatus = {
   totalRecipients: number;
   submittedCount: number;
   isComplete: boolean;
+};
+
+type JoinedPlayer = {
+  id: EncryptedValue | string;
+  name?: string;
 };
 
 type Activity = {
@@ -62,7 +76,7 @@ type Activity = {
   localToTime?: string;
   maxPlayers: number;
   status?: string;
-  joinedPlayers?: unknown[];
+  joinedPlayers?: JoinedPlayer[];
   skillLevel?: string;
   feedbackStatus?: FeedbackStatus;
   host: {
@@ -104,13 +118,20 @@ type TypingUser = {
   name: string;
 };
 
+type RoleFilter = 'all' | 'host' | 'participant';
+
 export default function MyHostedActivities() {
   const navigate = useNavigate();
   const [upcomingActivities, setUpcomingActivities] = useState<Activity[]>([]);
   const [pastActivities, setPastActivities] = useState<Activity[]>([]);
+  const [cancelledActivities, setCancelledActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [activityToCancel, setActivityToCancel] = useState<Activity | null>(null);
   const [openCancel, setOpenCancel] = useState(false);
+
+  const [upcomingFilter, setUpcomingFilter] = useState<RoleFilter>('all');
+  const [pastFilter, setPastFilter] = useState<RoleFilter>('all');
+  const [cancelledFilter, setCancelledFilter] = useState<RoleFilter>('all');
 
   const [openChat, setOpenChat] = useState(false);
   const [selectedChatActivity, setSelectedChatActivity] = useState<Activity | null>(null);
@@ -135,6 +156,35 @@ export default function MyHostedActivities() {
     () => (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/+$/, ''),
     []
   );
+
+  const getComparableValue = (value: EncryptedValue | string | undefined): string => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    return value.content || '';
+  };
+
+  const currentUserId = getComparableValue(userId);
+
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate('/');
+  };
+
+  const isUserHost = (activity: Activity) =>
+    getComparableValue(activity.host.id) === currentUserId;
+
+  const isUserParticipant = (activity: Activity) => {
+    if (!activity.joinedPlayers) return false;
+    return activity.joinedPlayers.some(
+      (p) => getComparableValue(p.id as EncryptedValue | string) === currentUserId
+    );
+  };
+
+  const applyRoleFilter = (activities: Activity[], filter: RoleFilter): Activity[] => {
+    if (filter === 'host') return activities.filter(isUserHost);
+    if (filter === 'participant') return activities.filter((a) => !isUserHost(a) && isUserParticipant(a));
+    return activities;
+  };
 
   useEffect(() => {
     fetchActivities();
@@ -211,19 +261,25 @@ export default function MyHostedActivities() {
       const now = new Date();
       const upcoming: Activity[] = [];
       const past: Activity[] = [];
+      const cancelled: Activity[] = [];
 
       res.data.activitiesWithEncryptedData.forEach((activity: Activity) => {
         const localStart = utcDateTimeToLocalParts(activity.date, activity.fromTime);
         const localEnd = utcDateTimeToLocalParts(activity.date, activity.toTime);
         const parsedStartDateTime = parseLocalActivityDateTime(activity.date, activity.fromTime);
         const parsedEndDateTime = parseLocalActivityDateTime(activity.date, activity.toTime);
-        const normalizedActivity = {
+        const normalizedActivity: Activity = {
           ...activity,
           localDate: localStart?.date || activity.date,
           localDateObj: parsedStartDateTime || localStart?.dateObj,
           localFromTime: localStart?.time || activity.fromTime,
           localToTime: localEnd?.time || activity.toTime,
         };
+
+        if (normalizedActivity.status === 'Cancelled') {
+          cancelled.push(normalizedActivity);
+          return;
+        }
 
         const activityEndDateTime = parsedEndDateTime || parsedStartDateTime || localEnd?.dateObj || localStart?.dateObj;
         const isUpcoming =
@@ -251,8 +307,15 @@ export default function MyHostedActivities() {
         return bTime - aTime;
       });
 
+      cancelled.sort((a, b) => {
+        const aTime = a.localDateObj instanceof Date ? a.localDateObj.getTime() : 0;
+        const bTime = b.localDateObj instanceof Date ? b.localDateObj.getTime() : 0;
+        return bTime - aTime;
+      });
+
       setUpcomingActivities(upcoming);
       setPastActivities(past);
+      setCancelledActivities(cancelled);
     } catch (err) {
       console.error('Error fetching activities:', err);
     } finally {
@@ -261,7 +324,7 @@ export default function MyHostedActivities() {
   };
 
 
-  const capitalizeWords = (str) =>
+  const capitalizeWords = (str: string | undefined) =>
     str ? str.replace(/\b\w/g, (char) => char.toUpperCase()) : '';
 
   const shouldShowFeedbackButton = (activity: Activity) => activity.status === 'Completed';
@@ -469,160 +532,466 @@ export default function MyHostedActivities() {
     }
   };
 
-  const renderActivityCard = (activity: Activity, allowActions = true) => (
-    <Card key={activity._id} className="hover:shadow-lg transition-shadow">
-      <CardHeader>
-        <div className="flex items-start justify-between">
-          <div>
-            <CardTitle className="text-lg">{capitalizeWords(activity.sport)}</CardTitle>
-            <CardDescription className="mt-1">
-              Hosted by {activity.host.name}
-            </CardDescription>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Badge variant="outline">{capitalizeWords(activity.city)}</Badge>
-            {activity.status && activity.status !== 'Active' && (
-              <Badge variant={activity.status === 'Completed' ? 'secondary' : 'destructive'}>
-                {activity.status}
-              </Badge>
-            )}
-
-            {allowActions && activity.host.id.content === userId?.content && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="icon" variant="ghost" className="h-8 w-8">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => handleEditActivity(activity)}>
-                    Edit Activity
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="text-destructive"
-                    onClick={() => openCancelModal(activity)}
-                  >
-                    Cancel Activity
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-
-      <CardContent className="space-y-4">
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span>
-              {(activity.localDateObj || new Date(activity.date)).toLocaleDateString(undefined, {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-              })}
-            </span>
-            <Clock className="h-4 w-4 text-muted-foreground ml-2" />
-            <span>
-              {activity.localFromTime || activity.fromTime} - {activity.localToTime || activity.toTime}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-muted-foreground" />
-            <span>
-              {capitalizeWords(activity.location) || capitalizeWords(activity.address)}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-muted-foreground" />
-            <span>
-              {activity.joinedPlayers?.length || 0}/{activity.maxPlayers} players
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-xs py-1 px-2">
-              {activity.skillLevel ? capitalizeWords(activity.skillLevel) : 'Any'}
-            </Badge>
-            <span className="text-muted-foreground text-xs">Skill Level</span>
-          </div>
-        </div>
-
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={() => openChatRoom(activity)}
+  /* ── Role Filter Pills ── */
+  const RoleFilterPills = ({
+    value,
+    onChange,
+    counts,
+  }: {
+    value: RoleFilter;
+    onChange: (v: RoleFilter) => void;
+    counts: { all: number; host: number; participant: number };
+  }) => (
+    <div className="flex items-center gap-2 flex-wrap">
+      {(
+        [
+          { key: 'all' as RoleFilter, label: 'All', icon: null },
+          { key: 'host' as RoleFilter, label: 'As Host', icon: <Shield className="h-3.5 w-3.5 mr-1" /> },
+          { key: 'participant' as RoleFilter, label: 'As Player', icon: <UserCheck className="h-3.5 w-3.5 mr-1" /> },
+        ]
+      ).map(({ key, label, icon }) => (
+        <button
+          key={key}
+          onClick={() => onChange(key)}
+          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+            value === key
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-700'
+          }`}
         >
-          <MessageCircle className="h-4 w-4 mr-2" />
-          Chat with Players
-        </Button>
-
-        {shouldShowFeedbackButton(activity) && (
-          <Button
-            className="w-full"
-            onClick={() => navigate(`/activities/${activity._id}/feedback`)}
+          {icon}
+          {label}
+          <span
+            className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+              value === key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+            }`}
           >
-            {getFeedbackButtonLabel(activity)}
-            {activity.feedbackStatus && (
-              <span className="ml-2 text-xs opacity-80">
-                {activity.feedbackStatus.submittedCount}/{activity.feedbackStatus.totalRecipients}
-              </span>
-            )}
-          </Button>
-        )}
-      </CardContent>
-    </Card>
+            {counts[key]}
+          </span>
+        </button>
+      ))}
+    </div>
   );
 
-  if (loading) return <p className="text-center mt-10">Loading activities...</p>;
+  /* ── Activity Card ── */
+  const renderActivityCard = (activity: Activity, allowCancelAction = true) => {
+    const isHost = isUserHost(activity);
+    const isParticipant = isUserParticipant(activity);
+
+    return (
+      <Card key={activity._id} className="hover:shadow-md transition-all duration-200 border-slate-200 overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50 border-b border-slate-100 py-4">
+          <div className="flex items-start justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <CardTitle className="text-lg font-semibold text-slate-800">
+                  {capitalizeWords(activity.sport)}
+                </CardTitle>
+                {isHost && (
+                  <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-[10px] px-2 py-0">
+                    <Shield className="h-3 w-3 mr-1" />
+                    Host
+                  </Badge>
+                )}
+                {!isHost && isParticipant && (
+                  <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px] px-2 py-0">
+                    <UserCheck className="h-3 w-3 mr-1" />
+                    Player
+                  </Badge>
+                )}
+              </div>
+              <CardDescription className="mt-1 text-slate-500">
+                Hosted by {activity.host.name}
+              </CardDescription>
+            </div>
+
+            <div className="flex items-center gap-2 ml-2 shrink-0">
+              {activity.city && (
+                <Badge variant="outline" className="border-blue-200 text-blue-700 bg-blue-50">
+                  {capitalizeWords(activity.city)}
+                </Badge>
+              )}
+              {activity.status && activity.status !== 'Active' && (
+                <Badge
+                  variant={
+                    activity.status === 'Completed'
+                      ? 'secondary'
+                      : activity.status === 'Cancelled'
+                      ? 'outline'
+                      : 'destructive'
+                  }
+                  className={activity.status === 'Cancelled' ? 'border-rose-200 text-rose-600 bg-rose-50' : ''}
+                >
+                  {activity.status}
+                </Badge>
+              )}
+
+              {allowCancelAction && isHost && activity.status === 'Active' && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-600 hover:bg-blue-50">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleEditActivity(activity)}>
+                      Edit Activity
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-destructive"
+                      onClick={() => openCancelModal(activity)}
+                    >
+                      Cancel Activity
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-4 pt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+            <div className="flex items-center gap-2 text-slate-600">
+              <Calendar className="h-4 w-4 text-blue-500 shrink-0" />
+              <span>
+                {(activity.localDateObj || new Date(activity.date)).toLocaleDateString(undefined, {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-slate-600">
+              <Clock className="h-4 w-4 text-blue-500 shrink-0" />
+              <span>
+                {activity.localFromTime || activity.fromTime} – {activity.localToTime || activity.toTime}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-slate-600">
+              <MapPin className="h-4 w-4 text-blue-500 shrink-0" />
+              <span className="truncate">
+                {capitalizeWords(activity.location) || capitalizeWords(activity.address)}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-slate-600">
+              <Users className="h-4 w-4 text-blue-500 shrink-0" />
+              <span>
+                {activity.joinedPlayers?.length || 0}/{activity.maxPlayers} players
+              </span>
+            </div>
+          </div>
+
+          {activity.skillLevel && (
+            <div className="flex items-center gap-2">
+              <Star className="h-4 w-4 text-amber-400" />
+              <Badge variant="secondary" className="text-xs">
+                {capitalizeWords(activity.skillLevel)} Level
+              </Badge>
+            </div>
+          )}
+
+          {activity.status !== 'Cancelled' && (
+            <div className="flex flex-col gap-2 pt-1">
+              <Button
+                variant="outline"
+                className="w-full border-blue-200 text-blue-700 hover:bg-blue-50"
+                onClick={() => openChatRoom(activity)}
+              >
+                <MessageCircle className="h-4 w-4 mr-2" />
+                Chat with Players
+              </Button>
+
+              {shouldShowFeedbackButton(activity) && (
+                <Button
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={() => navigate(`/activities/${activity._id}/feedback`)}
+                >
+                  <Trophy className="h-4 w-4 mr-2" />
+                  {getFeedbackButtonLabel(activity)}
+                  {activity.feedbackStatus && (
+                    <span className="ml-2 text-xs opacity-80">
+                      ({activity.feedbackStatus.submittedCount}/{activity.feedbackStatus.totalRecipients})
+                    </span>
+                  )}
+                </Button>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
+  /* ── Empty State ── */
+  const EmptyState = ({
+    icon: Icon,
+    title,
+    subtitle,
+    showCta,
+  }: {
+    icon: React.ElementType;
+    title: string;
+    subtitle: string;
+    showCta?: boolean;
+  }) => (
+    <div className="text-center py-14 text-slate-400">
+      <Icon className="h-10 w-10 mx-auto mb-3 opacity-40" />
+      <p className="font-medium text-slate-500">{title}</p>
+      <p className="text-sm mt-1">{subtitle}</p>
+      {showCta && (
+        <Button
+          className="mt-5 bg-blue-600 hover:bg-blue-700 text-white"
+          onClick={() => navigate('/host-activity')}
+        >
+          <PlusCircle className="h-4 w-4 mr-2" />
+          Host an Activity
+        </Button>
+      )}
+    </div>
+  );
+
+  const filteredUpcoming = applyRoleFilter(upcomingActivities, upcomingFilter);
+  const filteredPast = applyRoleFilter(pastActivities, pastFilter);
+  const filteredCancelled = applyRoleFilter(cancelledActivities, cancelledFilter);
+
+  const upcomingCounts = {
+    all: upcomingActivities.length,
+    host: upcomingActivities.filter(isUserHost).length,
+    participant: upcomingActivities.filter((a) => !isUserHost(a) && isUserParticipant(a)).length,
+  };
+  const pastCounts = {
+    all: pastActivities.length,
+    host: pastActivities.filter(isUserHost).length,
+    participant: pastActivities.filter((a) => !isUserHost(a) && isUserParticipant(a)).length,
+  };
+  const cancelledCounts = {
+    all: cancelledActivities.length,
+    host: cancelledActivities.filter(isUserHost).length,
+    participant: cancelledActivities.filter((a) => !isUserHost(a) && isUserParticipant(a)).length,
+  };
+
+  /* ── Loading ── */
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
+        <Navbar onLogout={handleLogout} />
+        <div className="container mx-auto px-4 py-8 md:py-12 max-w-7xl">
+          <Card className="border-slate-200">
+            <CardContent className="flex items-center justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-500 mr-3" />
+              <p className="text-slate-500 text-lg">Loading your activities…</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-accent/5 p-4">
-      <div className="container mx-auto max-w-4xl">
-        <h1 className="text-3xl font-bold mb-6">My Hosted Activities</h1>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
+      <Navbar onLogout={handleLogout} />
 
-        <Tabs defaultValue="upcoming" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="upcoming">All Upcoming Activities</TabsTrigger>
-            <TabsTrigger value="myactivities">My Hosted Activities</TabsTrigger>
-            <TabsTrigger value="cancelled">Cancelled</TabsTrigger>
-            <TabsTrigger value="past">Past Activities</TabsTrigger>
-          </TabsList>
+      <div className="container mx-auto px-4 py-8 md:py-12 max-w-7xl">
 
-          <TabsContent value="upcoming" className="space-y-4">
-            {upcomingActivities.length
-              ? upcomingActivities.map((activity) => renderActivityCard(activity, true))
-              : (
-                <Card>
-                  <CardContent className="p-6 text-center">
-                    <p className="text-muted-foreground">No upcoming activities yet</p>
-                  </CardContent>
-                </Card>
-              )}
-          </TabsContent>
+        {/* ── Hero ── */}
+        <div className="mb-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold text-slate-800 mb-2">
+                My Activities
+              </h1>
+              <p className="text-slate-500 text-lg">
+                Every session you've hosted or joined, all in one place.
+              </p>
+            </div>
+            <div className="flex gap-3 shrink-0">
+              <Button
+                variant="outline"
+                className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                onClick={() => navigate('/dashboard')}
+              >
+                Back to Dashboard
+              </Button>
+              <Button
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => navigate('/host-activity')}
+              >
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Host New Activity
+              </Button>
+            </div>
+          </div>
+        </div>
 
-          <TabsContent value="past" className="space-y-4">
-            {pastActivities.length
-              ? pastActivities.map((activity) => renderActivityCard(activity, false))
-              : (
-                <Card>
-                  <CardContent className="p-6 text-center">
-                    <p className="text-muted-foreground">No past activities yet</p>
-                  </CardContent>
-                </Card>
-              )}
-          </TabsContent>
-        </Tabs>
+        {/* ── Stat Cards ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+          <Card className="border-slate-200">
+            <CardContent className="flex items-center gap-4 p-5">
+              <div className="p-3 rounded-xl bg-blue-100">
+                <Zap className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Upcoming</p>
+                <p className="text-2xl font-bold text-slate-800">{upcomingActivities.length}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200">
+            <CardContent className="flex items-center gap-4 p-5">
+              <div className="p-3 rounded-xl bg-slate-100">
+                <History className="h-5 w-5 text-slate-600" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Past</p>
+                <p className="text-2xl font-bold text-slate-800">{pastActivities.length}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200">
+            <CardContent className="flex items-center gap-4 p-5">
+              <div className="p-3 rounded-xl bg-rose-100">
+                <XCircle className="h-5 w-5 text-rose-500" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Cancelled</p>
+                <p className="text-2xl font-bold text-slate-800">{cancelledActivities.length}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200">
+            <CardContent className="flex items-center gap-4 p-5">
+              <div className="p-3 rounded-xl bg-emerald-100">
+                <Trophy className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Total</p>
+                <p className="text-2xl font-bold text-slate-800">
+                  {upcomingActivities.length + pastActivities.length + cancelledActivities.length}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ── Main Tabs Card ── */}
+        <Card className="border-slate-200 overflow-hidden">
+          <CardContent className="p-0">
+            <Tabs defaultValue="upcoming">
+              <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border-b border-slate-100 px-6 pt-5 pb-0">
+                <TabsList className="bg-transparent border-0 h-auto p-0 gap-0 w-full justify-start">
+                  <TabsTrigger
+                    value="upcoming"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-slate-500 px-5 pb-3 pt-1 font-medium"
+                  >
+                    Upcoming
+                    <span className="ml-2 rounded-full bg-blue-100 text-blue-700 text-[10px] font-semibold px-2 py-0.5">
+                      {upcomingActivities.length}
+                    </span>
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="past"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-slate-500 px-5 pb-3 pt-1 font-medium"
+                  >
+                    Past
+                    <span className="ml-2 rounded-full bg-slate-200 text-slate-600 text-[10px] font-semibold px-2 py-0.5">
+                      {pastActivities.length}
+                    </span>
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="cancelled"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-slate-500 px-5 pb-3 pt-1 font-medium"
+                  >
+                    Cancelled
+                    <span className="ml-2 rounded-full bg-rose-100 text-rose-600 text-[10px] font-semibold px-2 py-0.5">
+                      {cancelledActivities.length}
+                    </span>
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+
+              {/* ── Upcoming ── */}
+              <TabsContent value="upcoming" className="p-6 space-y-5 mt-0">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <p className="text-sm text-slate-500">
+                    {filteredUpcoming.length} activit{filteredUpcoming.length !== 1 ? 'ies' : 'y'} shown
+                  </p>
+                  <RoleFilterPills value={upcomingFilter} onChange={setUpcomingFilter} counts={upcomingCounts} />
+                </div>
+                {filteredUpcoming.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {filteredUpcoming.map((activity) => renderActivityCard(activity, true))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    icon={Zap}
+                    title={
+                      upcomingFilter === 'all'
+                        ? 'No upcoming activities'
+                        : upcomingFilter === 'host'
+                        ? 'No upcoming activities you are hosting'
+                        : 'No upcoming activities you are playing in'
+                    }
+                    subtitle={
+                      upcomingFilter !== 'participant'
+                        ? 'Host a new activity to see it here.'
+                        : 'Join an activity to see it here.'
+                    }
+                    showCta={upcomingFilter !== 'participant'}
+                  />
+                )}
+              </TabsContent>
+
+              {/* ── Past ── */}
+              <TabsContent value="past" className="p-6 space-y-5 mt-0">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <p className="text-sm text-slate-500">
+                    {filteredPast.length} activit{filteredPast.length !== 1 ? 'ies' : 'y'} shown
+                  </p>
+                  <RoleFilterPills value={pastFilter} onChange={setPastFilter} counts={pastCounts} />
+                </div>
+                {filteredPast.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {filteredPast.map((activity) => renderActivityCard(activity, false))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    icon={History}
+                    title="No past activities"
+                    subtitle="Your completed sessions will appear here."
+                  />
+                )}
+              </TabsContent>
+
+              {/* ── Cancelled ── */}
+              <TabsContent value="cancelled" className="p-6 space-y-5 mt-0">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <p className="text-sm text-slate-500">
+                    {filteredCancelled.length} activit{filteredCancelled.length !== 1 ? 'ies' : 'y'} shown
+                  </p>
+                  <RoleFilterPills value={cancelledFilter} onChange={setCancelledFilter} counts={cancelledCounts} />
+                </div>
+                {filteredCancelled.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {filteredCancelled.map((activity) => renderActivityCard(activity, false))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    icon={XCircle}
+                    title="No cancelled activities"
+                    subtitle="Any cancelled sessions will appear here."
+                  />
+                )}
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+
       </div>
 
-      
-      {/* ================= CANCEL CONFIRMATION MODAL ================= */}
+      {/* ── Cancel Confirmation Modal ── */}
       <Dialog open={openCancel} onOpenChange={setOpenCancel}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md border-slate-200">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-destructive">
               Cancel Activity?
@@ -634,16 +1003,16 @@ export default function MyHostedActivities() {
               <p className="text-muted-foreground">
                 Are you sure you want to cancel this activity?
               </p>
-
-              <div className="rounded-lg border p-3 space-y-1">
-                <p className="font-semibold">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-1">
+                <p className="font-semibold text-slate-800">
                   {capitalizeWords(activityToCancel.sport)}
                 </p>
-                <p>
+                <p className="text-slate-500">
                   {(activityToCancel.localDateObj || new Date(activityToCancel.date)).toLocaleDateString()} ·{' '}
-                  {activityToCancel.localFromTime || activityToCancel.fromTime} - {activityToCancel.localToTime || activityToCancel.toTime}
+                  {activityToCancel.localFromTime || activityToCancel.fromTime} –{' '}
+                  {activityToCancel.localToTime || activityToCancel.toTime}
                 </p>
-                <p>
+                <p className="text-slate-500">
                   {capitalizeWords(activityToCancel.location) ||
                     capitalizeWords(activityToCancel.address)}
                 </p>
@@ -662,25 +1031,33 @@ export default function MyHostedActivities() {
         </DialogContent>
       </Dialog>
 
-      {/* ================= ACTIVITY CHAT ROOM ================= */}
-      <Dialog open={openChat} onOpenChange={(nextOpen) => (!nextOpen ? closeChatRoom() : setOpenChat(true))}>
+      {/* ── Activity Chat Room ── */}
+      <Dialog
+        open={openChat}
+        onOpenChange={(nextOpen) => (!nextOpen ? closeChatRoom() : setOpenChat(true))}
+      >
         <DialogContent className="max-w-3xl p-0 overflow-hidden">
-          <DialogHeader className="px-6 pt-6 pb-3 border-b">
-            <DialogTitle className="flex items-center gap-2 text-xl">
-              <MessageCircle className="h-5 w-5" />
-              {selectedChatActivity ? `${capitalizeWords(selectedChatActivity.sport)} Chat Room` : 'Chat Room'}
+          <DialogHeader className="px-6 pt-6 pb-3 border-b bg-gradient-to-r from-blue-50 to-cyan-50">
+            <DialogTitle className="flex items-center gap-2 text-xl text-slate-800">
+              <MessageCircle className="h-5 w-5 text-blue-600" />
+              {selectedChatActivity
+                ? `${capitalizeWords(selectedChatActivity.sport)} Chat Room`
+                : 'Chat Room'}
             </DialogTitle>
-            <p className="text-xs text-muted-foreground text-left">
-              {chatParticipants.length} participants
-            </p>
+            <p className="text-xs text-slate-500 text-left">{chatParticipants.length} participants</p>
           </DialogHeader>
 
           <div className="px-6 py-4 space-y-3">
             {!!chatParticipants.length && (
               <div className="flex flex-wrap gap-2">
                 {chatParticipants.map((participant) => (
-                  <Badge key={`${participant.id?.content}-${participant.name}`} variant="outline">
-                    {participant.name}{participant.isHost ? ' (Host)' : ''}
+                  <Badge
+                    key={`${participant.id?.content}-${participant.name}`}
+                    variant="outline"
+                    className="border-blue-200 text-blue-700 bg-blue-50"
+                  >
+                    {participant.name}
+                    {participant.isHost ? ' (Host)' : ''}
                   </Badge>
                 ))}
               </div>
@@ -711,11 +1088,9 @@ export default function MyHostedActivities() {
                     {!message.isOwnMessage && (
                       <p className="text-xs font-semibold mb-1">{message.sender?.name}</p>
                     )}
-
                     {message.message && (
                       <p className="text-sm whitespace-pre-wrap break-words">{message.message}</p>
                     )}
-
                     {message.attachment?.url && (
                       <a
                         href={resolveMediaUrl(message.attachment.url)}
@@ -730,11 +1105,10 @@ export default function MyHostedActivities() {
                         />
                       </a>
                     )}
-
                     <p className="text-[10px] opacity-70 mt-1">
                       {new Date(message.createdAt).toLocaleTimeString([], {
                         hour: '2-digit',
-                        minute: '2-digit'
+                        minute: '2-digit',
                       })}
                     </p>
                   </div>
@@ -786,7 +1160,6 @@ export default function MyHostedActivities() {
                   />
                 </div>
               )}
-
               <div className="flex items-end gap-2">
                 <div className="flex-1">
                   <Input
@@ -804,7 +1177,6 @@ export default function MyHostedActivities() {
                     placeholder="Type a message..."
                   />
                 </div>
-
                 <Button
                   type="button"
                   variant="outline"
@@ -813,7 +1185,6 @@ export default function MyHostedActivities() {
                 >
                   <Smile className="h-4 w-4" />
                 </Button>
-
                 <Button
                   type="button"
                   variant="outline"
@@ -834,12 +1205,9 @@ export default function MyHostedActivities() {
                   className="hidden"
                   onChange={(event) => {
                     const file = event.target.files?.[0];
-                    if (file) {
-                      uploadChatImage(file);
-                    }
+                    if (file) uploadChatImage(file);
                   }}
                 />
-
                 <Button
                   type="button"
                   size="icon"
@@ -857,8 +1225,6 @@ export default function MyHostedActivities() {
           </div>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }
-
