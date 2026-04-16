@@ -47,6 +47,7 @@ type Activity = {
   localFromTime?: string;
   localToTime?: string;
   maxPlayers: number;
+  status?: string;
   joinedPlayers?: unknown[];
   skillLevel?: string;
   host: {
@@ -161,8 +162,9 @@ export default function MyHostedActivities() {
         { userEmail, userId }
       );
 
-      const upcoming = [];
-      const past = [];
+      const now = new Date();
+      const upcoming: Activity[] = [];
+      const past: Activity[] = [];
 
       res.data.activitiesWithEncryptedData.forEach((activity: Activity) => {
         const localStart = utcDateTimeToLocalParts(activity.date, activity.fromTime);
@@ -175,12 +177,30 @@ export default function MyHostedActivities() {
           localToTime: localEnd?.time || activity.toTime,
         };
 
-        const activityDate = new Date(normalizedActivity.localDate);
-        if (activityDate > new Date()) {
+        const activityEndDateTime = localEnd?.dateObj || localStart?.dateObj;
+        const isUpcoming =
+          normalizedActivity.status === 'Active' &&
+          activityEndDateTime instanceof Date &&
+          !Number.isNaN(activityEndDateTime.getTime()) &&
+          activityEndDateTime >= now;
+
+        if (isUpcoming) {
           upcoming.push(normalizedActivity);
         } else {
           past.push(normalizedActivity);
         }
+      });
+
+      upcoming.sort((a, b) => {
+        const aTime = a.localDateObj instanceof Date ? a.localDateObj.getTime() : 0;
+        const bTime = b.localDateObj instanceof Date ? b.localDateObj.getTime() : 0;
+        return aTime - bTime;
+      });
+
+      past.sort((a, b) => {
+        const aTime = a.localDateObj instanceof Date ? a.localDateObj.getTime() : 0;
+        const bTime = b.localDateObj instanceof Date ? b.localDateObj.getTime() : 0;
+        return bTime - aTime;
       });
 
       setUpcomingActivities(upcoming);
