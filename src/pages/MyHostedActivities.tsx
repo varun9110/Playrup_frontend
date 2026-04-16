@@ -469,7 +469,7 @@ export default function MyHostedActivities() {
     }
   };
 
-  const renderActivityCard = (activity: Activity) => (
+  const renderActivityCard = (activity: Activity, allowActions = true) => (
     <Card key={activity._id} className="hover:shadow-lg transition-shadow">
       <CardHeader>
         <div className="flex items-start justify-between">
@@ -488,7 +488,7 @@ export default function MyHostedActivities() {
               </Badge>
             )}
 
-            {activity.host.id.content === userId?.content && (
+            {allowActions && activity.host.id.content === userId?.content && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="icon" variant="ghost" className="h-8 w-8">
@@ -595,7 +595,7 @@ export default function MyHostedActivities() {
 
           <TabsContent value="upcoming" className="space-y-4">
             {upcomingActivities.length
-              ? upcomingActivities.map(renderActivityCard)
+              ? upcomingActivities.map((activity) => renderActivityCard(activity, true))
               : (
                 <Card>
                   <CardContent className="p-6 text-center">
@@ -607,7 +607,7 @@ export default function MyHostedActivities() {
 
           <TabsContent value="past" className="space-y-4">
             {pastActivities.length
-              ? pastActivities.map(renderActivityCard)
+              ? pastActivities.map((activity) => renderActivityCard(activity, false))
               : (
                 <Card>
                   <CardContent className="p-6 text-center">
