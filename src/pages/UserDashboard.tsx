@@ -207,8 +207,8 @@ export default function UserDashboard() {
             <Button asChild><Link to="/bookcourt">Book a Court</Link></Button>
             <Button asChild><Link to="/my-bookings">My Bookings</Link></Button>
             <Button asChild><Link to="/host-activity">Host Activity</Link></Button>
-            <Button variant="outline" asChild><Link to="/activities">View All Activities</Link></Button>
-            <Button variant="outline" asChild><Link to="/my-hosted">My Hosted Activities</Link></Button>
+            <Button variant="outline" asChild><Link to="/activities">Browse Activities</Link></Button>
+            <Button variant="outline" asChild><Link to="/my-hosted">My Activities</Link></Button>
             <Button variant="outline" asChild><Link to="/activity-requests">Activity Requests</Link></Button>
           </CardContent>
         </Card>

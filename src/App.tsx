@@ -20,6 +20,7 @@ import HostActivity from "./pages/HostActivity";
 import AllActivities from "./pages/AllActivities";
 import MyHostedActivities from "./pages/MyHostedActivities";
 import UserActivityRequests from "./pages/UserActivityRequests";
+import ActivityFeedback from "./pages/ActivityFeedback";
 
 /** Super Admin pages import */
 import AdminLanding from "./pages/AdminLanding";
@@ -51,6 +52,7 @@ const App = () => (
           <Route path="/host-activity" element={<HostActivity />} />
           <Route path="/activities" element={<AllActivities />} />
           <Route path="/my-hosted" element={<MyHostedActivities />} />
+          <Route path="/activities/:activityId/feedback" element={<PrivateRoute requiredRole="user"><ActivityFeedback /></PrivateRoute>} />
           <Route path="/activity-requests" element={<UserActivityRequests />} />
 
 

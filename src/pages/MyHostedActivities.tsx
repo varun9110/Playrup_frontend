@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 import {
   Card,
   CardHeader,
@@ -33,6 +34,19 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 
+type EncryptedValue = {
+  iv: string;
+  content: string;
+  tag: string;
+};
+
+type FeedbackStatus = {
+  canSubmit: boolean;
+  totalRecipients: number;
+  submittedCount: number;
+  isComplete: boolean;
+};
+
 type Activity = {
   _id: string;
   sport: string;
@@ -50,14 +64,15 @@ type Activity = {
   status?: string;
   joinedPlayers?: unknown[];
   skillLevel?: string;
+  feedbackStatus?: FeedbackStatus;
   host: {
-    id: { content: string };
+    id: EncryptedValue;
     name: string;
   };
 };
 
 type ChatParticipant = {
-  id: { content: string };
+  id: EncryptedValue;
   name: string;
   email: string;
   isHost: boolean;
@@ -76,7 +91,7 @@ type ChatMessage = {
   message?: string;
   attachment?: ChatAttachment | null;
   sender: {
-    id: { content: string };
+    id: EncryptedValue;
     name: string;
   };
   createdAt: string;
@@ -85,11 +100,12 @@ type ChatMessage = {
 };
 
 type TypingUser = {
-  id: { content: string };
+  id: EncryptedValue;
   name: string;
 };
 
 export default function MyHostedActivities() {
+  const navigate = useNavigate();
   const [upcomingActivities, setUpcomingActivities] = useState<Activity[]>([]);
   const [pastActivities, setPastActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,8 +123,9 @@ export default function MyHostedActivities() {
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-  const userEmail = JSON.parse(localStorage.getItem('user'))?.email;
-  const userId = JSON.parse(localStorage.getItem("user"))?.userId;
+  const storedUser = JSON.parse(localStorage.getItem('user') || 'null');
+  const userEmail = storedUser?.email;
+  const userId = storedUser?.userId as EncryptedValue | undefined;
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -215,6 +232,16 @@ export default function MyHostedActivities() {
 
   const capitalizeWords = (str) =>
     str ? str.replace(/\b\w/g, (char) => char.toUpperCase()) : '';
+
+  const shouldShowFeedbackButton = (activity: Activity) => activity.status === 'Completed';
+
+  const getFeedbackButtonLabel = (activity: Activity) => {
+    if (!activity.feedbackStatus) {
+      return 'Rate Players';
+    }
+
+    return activity.feedbackStatus.isComplete ? 'Review Ratings' : 'Rate Players';
+  };
 
   const handleEditActivity = (activity: Activity) => console.log('Edit activity', activity);
 
@@ -424,8 +451,13 @@ export default function MyHostedActivities() {
 
           <div className="flex items-center gap-2">
             <Badge variant="outline">{capitalizeWords(activity.city)}</Badge>
+            {activity.status && activity.status !== 'Active' && (
+              <Badge variant={activity.status === 'Completed' ? 'secondary' : 'destructive'}>
+                {activity.status}
+              </Badge>
+            )}
 
-            {activity.host.id.content === userId.content && (
+            {activity.host.id.content === userId?.content && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="icon" variant="ghost" className="h-8 w-8">
@@ -497,6 +529,20 @@ export default function MyHostedActivities() {
           <MessageCircle className="h-4 w-4 mr-2" />
           Chat with Players
         </Button>
+
+        {shouldShowFeedbackButton(activity) && (
+          <Button
+            className="w-full"
+            onClick={() => navigate(`/activities/${activity._id}/feedback`)}
+          >
+            {getFeedbackButtonLabel(activity)}
+            {activity.feedbackStatus && (
+              <span className="ml-2 text-xs opacity-80">
+                {activity.feedbackStatus.submittedCount}/{activity.feedbackStatus.totalRecipients}
+              </span>
+            )}
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
@@ -780,6 +826,7 @@ export default function MyHostedActivities() {
           </div>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }
