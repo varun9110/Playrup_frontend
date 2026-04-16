@@ -30,20 +30,6 @@ import AcademySetup from "./pages/AcademySetup";
 import AcademyDashboard from "./pages/AcademyDashboard";
 import AcademyBooking from "./pages/AcademyBooking";
 
-// PlayC Components
-// import PlayCRegister from "./pages/PlayC/Register";
-// import PlayCLogin from "./pages/PlayC/Login";
-// import PlayCVerifyOtp from "./pages/PlayC/VerifyOtp";
-// import PlayCDashboard from "./pages/PlayC/Dashboard";
-// import BookCourt from "./pages/PlayC/BookCourt";
-// import UserBookings from "./pages/PlayC/UserBookings";
-// import HostActivity from "./pages/PlayC/HostActivity";
-// import AllActivities from "./pages/PlayC/AllActivities";
-// import MyHostedActivities from "./pages/PlayC/MyHostedActivities";
-// import MyRequests from "./pages/PlayC/MyRequests";
-// import AdminBookings from "./pages/PlayC/AdminBookings";
-
-
 const queryClient = new QueryClient();
 
 const App = () => (

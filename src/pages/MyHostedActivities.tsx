@@ -512,7 +512,7 @@ export default function MyHostedActivities() {
 
           <TabsContent value="past" className="space-y-4">
             {pastActivities.length
-              ? pastActivities.map(renderActivityCard)
+              ? pastActivities.map((activity) => renderActivityCard(activity))
               : (
                 <Card>
                   <CardContent className="p-6 text-center">

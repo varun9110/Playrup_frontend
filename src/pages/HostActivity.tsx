@@ -3,7 +3,7 @@ import axios from "axios";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { format, isSameDay } from "date-fns";
+import { format, isSameDay, startOfToday } from "date-fns";
 import { localDateTimeToUtcParts, utcDateTimeToLocalParts } from '@/lib/utils';
 
 import { Button } from "@/components/ui/button";
@@ -94,14 +94,22 @@ export default function HostActivity() {
     "7:00 PM", "8:00 PM", "9:00 PM", "10:00 PM",
   ];
 
+  const get24HourSlotValue = (slot: string) => {
+    const [time, meridiem] = slot.split(" ");
+    const hour12 = Number(time.split(":")[0]);
+
+    if (meridiem === "AM") {
+      return hour12 === 12 ? 0 : hour12;
+    }
+
+    return hour12 === 12 ? 12 : hour12 + 12;
+  };
+
   const filteredStartTimes = useMemo(() => {
     if (!selectedDate) return timeSlots;
     if (isSameDay(selectedDate, new Date())) {
       const nowHour = new Date().getHours();
-      return timeSlots.filter((t) => {
-        const hour = parseInt(t);
-        return t.includes("PM") ? hour + 12 > nowHour : hour > nowHour;
-      });
+      return timeSlots.filter((slot) => get24HourSlotValue(slot) > nowHour);
     }
     return timeSlots;
   }, [selectedDate]);
@@ -367,7 +375,7 @@ export default function HostActivity() {
                       mode="single"
                       selected={selectedDate}
                       onSelect={(d) => setValue("date", d!)}
-                      disabled={(d) => d < new Date()}
+                      disabled={(d) => d < startOfToday()}
                     />
                   </PopoverContent>
                 </Popover>

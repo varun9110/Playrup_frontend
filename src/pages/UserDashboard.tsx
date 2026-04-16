@@ -36,6 +36,7 @@ export default function UserDashboard() {
   const [activitiesJoined, setActivitiesJoined] = useState(0);
   const [recentPastActivities, setRecentPastActivities] = useState([]);
   const [pastHostedActivitiesCount, setPastHostedActivitiesCount] = useState(0);
+  const [totalKarmaPoints, setTotalKarmaPoints] = useState(0);
   const [loading, setLoading] = useState(true);
 
 
@@ -84,6 +85,7 @@ export default function UserDashboard() {
         setActivitiesJoined(data.pastActivitiesCount || 0);
         setRecentPastActivities((data.recentPastActivities || []).map(normalizeDateTimeItem));
         setPastHostedActivitiesCount(data.pastHostedActivitiesCount || 0);
+        setTotalKarmaPoints(data.totalKarmaPoints || 0);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {
@@ -187,7 +189,7 @@ export default function UserDashboard() {
                   <Trophy className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">0</p>
+                  <p className="text-2xl font-bold">{loading ? '...' : totalKarmaPoints}</p>
                   <p className="text-sm text-muted-foreground">Points Earned</p>
                 </div>
               </div>
