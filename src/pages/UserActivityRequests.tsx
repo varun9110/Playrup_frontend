@@ -27,6 +27,18 @@ export default function UserActivityRequests() {
     fetchSentRequests();
   }, []);
 
+  const sortRequestsByActivityDate = (requests) => {
+    return requests.sort((a, b) => {
+      const dateA = a.activityId?.localDateObj instanceof Date
+        ? a.activityId.localDateObj.getTime()
+        : 0;
+      const dateB = b.activityId?.localDateObj instanceof Date
+        ? b.activityId.localDateObj.getTime()
+        : 0;
+      return dateA - dateB;
+    });
+  };
+
 
   const fetchIncomingRequests = async () => {
     try {
@@ -53,20 +65,7 @@ export default function UserActivityRequests() {
         };
       });
 
-      // Filter out past activities
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // normalize to start of day
-      const upcomingRequests = normalizedRequests.filter((request) => {
-        const activityDate = new Date(request.activityId.localDate || request.activityId.date);
-        return activityDate >= today;
-      });
-
-      // Optional: sort by activity date ascending
-      upcomingRequests.sort(
-        (a, b) => new Date(a.activityId.localDate || a.activityId.date).getTime() - new Date(b.activityId.localDate || b.activityId.date).getTime()
-      );
-
-      setIncomingRequests(upcomingRequests);
+      setIncomingRequests(sortRequestsByActivityDate(normalizedRequests));
     } catch (err) {
       console.error('Failed to fetch incoming requests', err);
     } finally {
@@ -100,21 +99,7 @@ export default function UserActivityRequests() {
         };
       });
 
-      // Filter out past activities
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const upcomingRequests = normalizedRequests.filter((request) => {
-        const activityDate = new Date(request.activityId.localDate || request.activityId.date);
-        return activityDate >= today;
-      });
-
-      // Sort by date ascending
-      upcomingRequests.sort(
-        (a, b) => new Date(a.activityId.localDate || a.activityId.date).getTime() - new Date(b.activityId.localDate || b.activityId.date).getTime()
-      );
-
-      setSentRequests(upcomingRequests);
+      setSentRequests(sortRequestsByActivityDate(normalizedRequests));
 
     } catch (error) {
       console.error('Error fetching sent requests:', error);
