@@ -50,6 +50,7 @@ export default function AcademyBooking() {
   const [selectedAcademy, setSelectedAcademy] = useState<string>("");
   const [sports, setSports] = useState<Sport[]>([]);
   const [selectedSport, setSelectedSport] = useState<string>("");
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -174,6 +175,25 @@ export default function AcademyBooking() {
   }, [selectedSport, sports]);
 
   /* ---------------- UI ---------------- */
+  const cancelSelectedBooking = async () => {
+    if (!selectedBooking || !selectedAcademy) return;
+
+    setCancelLoading(true);
+    try {
+      await axios.post('/api/booking/academy-cancel-booking', {
+        bookingId: selectedBooking.id,
+        academyId: selectedAcademy
+      });
+
+      setSelectedBooking(null);
+      await fetchBookings();
+    } catch (error) {
+      console.error('Failed to cancel booking', error);
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       <Card className="rounded-2xl shadow-md">
@@ -335,6 +355,12 @@ export default function AcademyBooking() {
                 {format(selectedBooking.date, "dd MMM yyyy")}
               </div>
               <div><strong>Court:</strong> {selectedBooking.court}</div>
+
+              <div className="pt-2">
+                <Button variant="destructive" onClick={cancelSelectedBooking} disabled={cancelLoading}>
+                  {cancelLoading ? 'Cancelling...' : 'Cancel Booking'}
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>

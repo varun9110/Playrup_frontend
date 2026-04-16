@@ -25,6 +25,8 @@ import ActivityFeedback from "./pages/ActivityFeedback";
 /** Super Admin pages import */
 import AdminLanding from "./pages/AdminLanding";
 import AdminOnboardAcademy from "./pages/AdminOnboardAcademy";
+import AdminNotifications from "./pages/AdminNotifications";
+import NotificationBell from "./components/notifications/NotificationBell";
 
 /** Academy pages import */
 import AcademySetup from "./pages/AcademySetup";
@@ -39,6 +41,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <NotificationBell />
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/signup" element={<Signup />} />
@@ -65,6 +68,7 @@ const App = () => (
           {/* Super Admin Routes */}
           <Route path="/adminlanding" element={<PrivateRoute requiredRole="superadmin"><AdminLanding /></PrivateRoute>} />
           <Route path="/admin/onboard" element={<PrivateRoute requiredRole="superadmin"><AdminOnboardAcademy /></PrivateRoute>} />
+          <Route path="/admin/notifications" element={<PrivateRoute requiredRole="superadmin"><AdminNotifications /></PrivateRoute>} />
 
 
 

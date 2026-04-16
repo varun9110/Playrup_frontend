@@ -66,6 +66,12 @@ export default function AdminLanding() {
             </Button>
           </Link>
 
+          <Link to="/admin/notifications">
+            <Button className="w-full" variant="outline">
+              Manage Notifications
+            </Button>
+          </Link>
+
           <Button
             className="w-full"
             variant="destructive"
