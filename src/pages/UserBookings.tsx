@@ -4,9 +4,10 @@ import axios from 'axios';
 import { localDateTimeToUtcParts, utcDateTimeToLocalParts } from '@/lib/utils';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Navbar } from '@/components/layout';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +47,12 @@ export default function UserBookings() {
 
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/');
+  };
 
   /* ================= FETCH BOOKINGS ================= */
 
@@ -157,7 +164,7 @@ export default function UserBookings() {
   const fetchCourtAvailability = async (academyId: string, sport: string, date: string, time?: string) => {
   try {
     const localTime = time || modalTime;
-    const payload = { academyId, sport, duration: bookingToModify?.duration || 60 };
+    const payload: any = { academyId, sport, duration: bookingToModify?.duration || 60 };
     if (date && localTime) {
       const utcParts = localDateTimeToUtcParts(date, localTime);
       payload.date = utcParts.date;
@@ -261,28 +268,28 @@ export default function UserBookings() {
   const renderBookingCard = (booking: any) => (
     <Card
       key={booking.id}
-      className="card-gradient elegant-shadow hover:shadow-lg transition-all duration-300"
+      className="overflow-hidden border-slate-200 bg-white hover:border-slate-300 hover:shadow-md transition-all duration-300"
     >
       <CardContent className="p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-r from-primary to-accent flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center">
               <span className="text-white font-bold">
                 {booking.sport[0].toUpperCase()}
               </span>
             </div>
             <div>
-              <h3 className="font-semibold text-lg">
+              <h3 className="font-semibold text-lg text-slate-900">
                 {capitalizeWords(booking.sport)}
               </h3>
-              <Badge className="mt-1">
+              <Badge className="mt-1 bg-blue-100 text-blue-700 hover:bg-blue-100">
                 {capitalizeWords(booking.status)}
               </Badge>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="font-bold text-lg text-primary">
+            <span className="font-bold text-lg text-slate-900">
               ${booking.price}
             </span>
 
@@ -316,19 +323,19 @@ export default function UserBookings() {
           </div>
         </div>
 
-        <div className="space-y-2 text-muted-foreground">
+        <div className="space-y-2 text-slate-600">
           <div className="flex items-center gap-2">
-            <MapPin className="h-4 w-4" />
+            <MapPin className="h-4 w-4 text-blue-600" />
             <span>{booking.court} · {capitalizeWords(booking.location)}</span>
           </div>
 
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1">
-              <Calendar className="h-4 w-4" />
+              <Calendar className="h-4 w-4 text-blue-600" />
               <span>{booking.date}</span>
             </div>
             <div className="flex items-center gap-1">
-              <Clock className="h-4 w-4" />
+              <Clock className="h-4 w-4 text-blue-600" />
               <span>{booking.time}</span>
             </div>
           </div>
@@ -341,71 +348,114 @@ export default function UserBookings() {
 
   return (
     <>
-      <div className="min-h-screen gradient-bg p-4">
-        <div className="container mx-auto max-w-4xl">
-          <div className="mb-8 text-center">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent mb-4">
-              My Bookings
-            </h1>
-            <p className="text-muted-foreground text-lg">
-              Manage your court reservations
-            </p>
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
+        <Navbar onLogout={handleLogout} />
+
+        <div className="container mx-auto px-4 py-8 md:py-12 max-w-7xl">
+          <div className="mb-10">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 mb-8">
+              <div>
+                <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-2">
+                  My Bookings
+                </h1>
+                <p className="text-slate-600 text-lg">
+                  Manage and update your court reservations
+                </p>
+              </div>
+
+              <div className="flex gap-3 flex-wrap">
+                <Button className="rounded-lg h-11" onClick={() => navigate('/bookcourt')}>
+                  Book Court
+                </Button>
+                <Button variant="outline" className="rounded-lg h-11" onClick={() => navigate('/dashboard')}>
+                  Back to Dashboard
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Card className="overflow-hidden">
+                <CardContent className="p-6">
+                  <p className="text-sm text-slate-600 mb-1">Upcoming</p>
+                  <p className="text-3xl font-bold text-slate-900">{loading ? '—' : upcomingBookings.length}</p>
+                </CardContent>
+              </Card>
+              <Card className="overflow-hidden">
+                <CardContent className="p-6">
+                  <p className="text-sm text-slate-600 mb-1">Past Bookings</p>
+                  <p className="text-3xl font-bold text-slate-900">{loading ? '—' : pastBookings.length}</p>
+                </CardContent>
+              </Card>
+              <Card className="overflow-hidden">
+                <CardContent className="p-6">
+                  <p className="text-sm text-slate-600 mb-1">Total</p>
+                  <p className="text-3xl font-bold text-slate-900">{loading ? '—' : upcomingBookings.length + pastBookings.length}</p>
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
           {loading ? (
-            <p className="text-center text-muted-foreground">
-              Loading bookings...
-            </p>
+            <Card>
+              <CardContent className="p-8 text-center text-slate-500">
+                Loading bookings...
+              </CardContent>
+            </Card>
           ) : (
-            <Tabs defaultValue="upcoming" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-                <TabsTrigger value="past">Past Bookings</TabsTrigger>
-              </TabsList>
+            <Card className="overflow-hidden border-slate-200">
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50 border-b">
+                <CardTitle className="text-slate-900">Booking History</CardTitle>
+                <CardDescription>
+                  View upcoming and past reservations
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                <Tabs defaultValue="upcoming" className="space-y-6">
+                  <TabsList className="grid w-full max-w-sm grid-cols-2">
+                    <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+                    <TabsTrigger value="past">Past Bookings</TabsTrigger>
+                  </TabsList>
 
-              <TabsContent value="upcoming" className="space-y-4">
-                {upcomingBookings.length
-                  ? upcomingBookings.map(renderBookingCard)
-                  : (
-                    <Card>
-                      <CardContent className="p-6 text-center">
-                        <p className="text-muted-foreground mb-4">
-                          No upcoming bookings found
-                        </p>
-                        <Button
-                          onClick={() => navigate("/bookcourt")}
-                          className="btn-gradient text-white"
-                        >
-                          Book a Court
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  )}
-              </TabsContent>
+                  <TabsContent value="upcoming" className="space-y-4">
+                    {upcomingBookings.length
+                      ? upcomingBookings.map(renderBookingCard)
+                      : (
+                        <Card>
+                          <CardContent className="p-8 text-center">
+                            <p className="text-slate-500 mb-4">
+                              No upcoming bookings found
+                            </p>
+                            <Button onClick={() => navigate('/bookcourt')}>
+                              Book a Court
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      )}
+                  </TabsContent>
 
-              <TabsContent value="past" className="space-y-4">
-                {pastBookings.length
-                  ? pastBookings.map(renderBookingCard)
-                  : (
-                    <Card>
-                      <CardContent className="p-6 text-center">
-                        <p className="text-muted-foreground">
-                          No past bookings found
-                        </p>
-                      </CardContent>
-                    </Card>
-                  )}
-              </TabsContent>
-            </Tabs>
+                  <TabsContent value="past" className="space-y-4">
+                    {pastBookings.length
+                      ? pastBookings.map(renderBookingCard)
+                      : (
+                        <Card>
+                          <CardContent className="p-8 text-center text-slate-500">
+                            No past bookings found
+                          </CardContent>
+                        </Card>
+                      )}
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
           )}
         </div>
       </div>
 
       {/* ================= VIEW DETAILS MODAL ================= */}
       <Dialog open={openDetails} onOpenChange={setOpenDetails}>
-        <DialogContent className="max-w-lg card-gradient elegant-shadow">
+        <DialogContent className="max-w-lg border-slate-200">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            <DialogTitle className="text-2xl font-bold text-slate-900">
               Booking Details
             </DialogTitle>
           </DialogHeader>
@@ -414,7 +464,7 @@ export default function UserBookings() {
             <div className="space-y-4 text-sm">
               <DetailRow label="Sport" value={capitalizeWords(selectedBooking.sport)} />
               <DetailRow label="Status" value={<Badge>{capitalizeWords(selectedBooking.status)}</Badge>} />
-              <DetailRow label="Price" value={<span className="text-primary font-semibold">${selectedBooking.price}</span>} />
+              <DetailRow label="Price" value={<span className="text-slate-900 font-semibold">${selectedBooking.price}</span>} />
               <DetailRow label="Court" value={selectedBooking.court} />
               <DetailRow label="Date" value={selectedBooking.date} />
               <DetailRow label="Time" value={selectedBooking.time} />
@@ -431,7 +481,7 @@ export default function UserBookings() {
 
       {/* ================= CANCEL CONFIRMATION MODAL ================= */}
       <Dialog open={openCancel} onOpenChange={setOpenCancel}>
-        <DialogContent className="max-w-md card-gradient elegant-shadow">
+        <DialogContent className="max-w-md border-slate-200">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-destructive">
               Cancel Booking?
@@ -467,9 +517,9 @@ export default function UserBookings() {
 
       {/* ================= MODIFY BOOKING MODAL ================= */}
       <Dialog open={openModify} onOpenChange={setOpenModify}>
-        <DialogContent className="max-w-lg card-gradient elegant-shadow">
+        <DialogContent className="max-w-lg border-slate-200">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            <DialogTitle className="text-2xl font-bold text-slate-900">
               Modify Booking
             </DialogTitle>
           </DialogHeader>
