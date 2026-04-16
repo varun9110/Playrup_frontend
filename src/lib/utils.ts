@@ -52,6 +52,20 @@ export function localDateTimeToUtcParts(date: string | Date, time: string) {
 
 export function utcDateTimeToLocalParts(date: string, time: string) {
   if (!date || !time) return null
+
+  // When time already includes a full datetime, parse directly.
+  if (typeof time === 'string' && time.includes('T')) {
+    const parsed = new Date(time)
+    if (!Number.isNaN(parsed.getTime())) {
+      return {
+        date: formatDateForInput(parsed),
+        time: formatTimeForInput(parsed),
+        dateObj: parsed,
+        iso: parsed.toISOString(),
+      }
+    }
+  }
+
   // If date is a full ISO string, extract just the date part
   const dateOnly = date.includes('T') ? date.split('T')[0] : date
   // Convert 12-hour format (e.g., "9:00 AM") to 24-hour format if needed
@@ -59,6 +73,11 @@ export function utcDateTimeToLocalParts(date: string, time: string) {
   // Add 'Z' to treat as UTC - the backend returns UTC times that need conversion to browser's local timezone
   const utcIso = `${dateOnly}T${time24}:00Z`
   const utcDate = new Date(utcIso)
+
+  if (Number.isNaN(utcDate.getTime())) {
+    return null
+  }
+
   return {
     date: formatDateForInput(utcDate),
     time: formatTimeForInput(utcDate),

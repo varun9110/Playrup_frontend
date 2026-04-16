@@ -170,6 +170,35 @@ export default function MyHostedActivities() {
     };
   }, []);
 
+  const parseLocalActivityDateTime = (dateValue?: string, timeValue?: string) => {
+    if (!dateValue || !timeValue) return null;
+
+    if (String(timeValue).includes('T')) {
+      const parsedFullDateTime = new Date(String(timeValue));
+      return Number.isNaN(parsedFullDateTime.getTime()) ? null : parsedFullDateTime;
+    }
+
+    const dateOnly = String(dateValue).includes('T')
+      ? String(dateValue).split('T')[0]
+      : String(dateValue);
+
+    const normalizedTime = String(timeValue).trim();
+    const amPmMatch = normalizedTime.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
+
+    let time24 = normalizedTime;
+    if (amPmMatch) {
+      const [, hourPart, minutePart, meridiem] = amPmMatch;
+      let hours = Number(hourPart);
+      if (meridiem.toUpperCase() === 'PM' && hours !== 12) hours += 12;
+      if (meridiem.toUpperCase() === 'AM' && hours === 12) hours = 0;
+      time24 = `${String(hours).padStart(2, '0')}:${minutePart}`;
+    }
+
+    const withSeconds = /^\d{2}:\d{2}$/.test(time24) ? `${time24}:00` : time24;
+    const localDateTime = new Date(`${dateOnly}T${withSeconds}`);
+    return Number.isNaN(localDateTime.getTime()) ? null : localDateTime;
+  };
+
   const fetchActivities = async () => {
     if (!userEmail) return;
 
@@ -186,15 +215,17 @@ export default function MyHostedActivities() {
       res.data.activitiesWithEncryptedData.forEach((activity: Activity) => {
         const localStart = utcDateTimeToLocalParts(activity.date, activity.fromTime);
         const localEnd = utcDateTimeToLocalParts(activity.date, activity.toTime);
+        const parsedStartDateTime = parseLocalActivityDateTime(activity.date, activity.fromTime);
+        const parsedEndDateTime = parseLocalActivityDateTime(activity.date, activity.toTime);
         const normalizedActivity = {
           ...activity,
           localDate: localStart?.date || activity.date,
-          localDateObj: localStart?.dateObj,
+          localDateObj: parsedStartDateTime || localStart?.dateObj,
           localFromTime: localStart?.time || activity.fromTime,
           localToTime: localEnd?.time || activity.toTime,
         };
 
-        const activityEndDateTime = localEnd?.dateObj || localStart?.dateObj;
+        const activityEndDateTime = parsedEndDateTime || parsedStartDateTime || localEnd?.dateObj || localStart?.dateObj;
         const isUpcoming =
           normalizedActivity.status === 'Active' &&
           activityEndDateTime instanceof Date &&

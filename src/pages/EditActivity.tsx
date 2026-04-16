@@ -81,19 +81,28 @@ export default function EditActivity() {
   );
 
   const timeSlots = [
+    "12:00 AM", "1:00 AM", "2:00 AM", "3:00 AM", "4:00 AM", "5:00 AM",
     "6:00 AM", "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
     "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM", "5:00 PM",
-    "6:00 PM", "7:00 PM", "8:00 PM", "9:00 PM", "10:00 PM",
+    "6:00 PM", "7:00 PM", "8:00 PM", "9:00 PM", "10:00 PM", "11:00 PM",
   ];
+
+  const get24HourSlotValue = (slot: string) => {
+    const [time, meridiem] = slot.split(" ");
+    const hour12 = Number(time.split(":")[0]);
+
+    if (meridiem === "AM") {
+      return hour12 === 12 ? 0 : hour12;
+    }
+
+    return hour12 === 12 ? 12 : hour12 + 12;
+  };
 
   const filteredStartTimes = useMemo(() => {
     if (!selectedDate) return timeSlots;
     if (isSameDay(selectedDate, new Date())) {
       const nowHour = new Date().getHours();
-      return timeSlots.filter((t) => {
-        const hour = parseInt(t);
-        return t.includes("PM") ? hour + 12 > nowHour : hour > nowHour;
-      });
+      return timeSlots.filter((slot) => get24HourSlotValue(slot) > nowHour);
     }
     return timeSlots;
   }, [selectedDate]);
@@ -101,7 +110,8 @@ export default function EditActivity() {
   const filteredEndTimes = useMemo(() => {
     if (!selectedTimeStart) return timeSlots;
     const startIndex = timeSlots.indexOf(selectedTimeStart);
-    return timeSlots.slice(startIndex + 1);
+    if (startIndex < 0) return timeSlots;
+    return [...timeSlots.slice(startIndex + 1), ...timeSlots.slice(0, startIndex)];
   }, [selectedTimeStart]);
 
   /* ---------------- Load Activity ---------------- */
