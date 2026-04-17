@@ -63,8 +63,8 @@ const App = () => (
 
 
           {/* Academy Routes*/}
-          <Route path="/academy-setup" element={<PrivateRoute requiredRole="academy"><AcademySetup /></PrivateRoute>} />
           <Route path="/academy-dashboard" element={<PrivateRoute requiredRole="academy"><AcademyDashboard /></PrivateRoute>} />
+          <Route path="/academy-setup" element={<PrivateRoute requiredRole="academy"><AcademySetup /></PrivateRoute>} />
           <Route path="/academy-bookings" element={<PrivateRoute requiredRole="academy"><AcademyBooking /></PrivateRoute>} />
 
 
