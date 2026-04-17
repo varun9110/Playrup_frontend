@@ -3,9 +3,10 @@ import axios from "axios";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { format, isSameDay } from "date-fns";
-import { localDateTimeToUtcParts, utcDateTimeToLocalParts } from '@/lib/utils';
+import { format, isSameDay, isValid } from "date-fns";
+import { capitalizeWords, localDateTimeToUtcParts, utcDateTimeToLocalParts } from '@/lib/utils';
 import { useParams, useNavigate } from "react-router-dom";
+import { Navbar } from "@/components/layout";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +27,17 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
+import {
+  CalendarIcon,
+  MapPin,
+  Clock,
+  Users,
+  Trophy,
+  ArrowLeft,
+  DollarSign,
+  Star,
+  Zap,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const schema = z.object({
@@ -49,13 +60,16 @@ export default function EditActivity() {
   const { activityId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const userEmail = JSON.parse(localStorage.getItem("user")!).email;
+  const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+  const userEmail = storedUser?.email;
+  const userId = storedUser?.userId;
 
   const [cities, setCities] = useState<string[]>([]);
   const [sportsList, setSportsList] = useState<string[]>([]);
   const [academiesList, setAcademiesList] = useState<any[]>([]);
   const [courts, setCourts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
   const { handleSubmit, setValue, watch } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -80,6 +94,42 @@ export default function EditActivity() {
     [academiesList, selectedAcademyId]
   );
 
+  const safeCapitalize = (value?: string) => (value ? capitalizeWords(value) : "");
+
+  const to12HourSlot = (timeValue?: string) => {
+    if (!timeValue) return "";
+    const raw = String(timeValue).trim();
+
+    // Already 12-hour format.
+    if (/^\d{1,2}:\d{2}\s*[AaPp][Mm]$/.test(raw)) {
+      const [timePart, ampmPart] = raw.split(/\s+/);
+      const [h, m] = timePart.split(":");
+      return `${Number(h)}:${m} ${ampmPart.toUpperCase()}`;
+    }
+
+    // 24-hour format (HH:mm or HH:mm:ss).
+    const match24 = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+    if (match24) {
+      const hour24 = Number(match24[1]);
+      const minutes = match24[2];
+      const ampm = hour24 >= 12 ? "PM" : "AM";
+      const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+      return `${hour12}:${minutes} ${ampm}`;
+    }
+
+    // ISO/full datetime fallback.
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      const hour24 = parsed.getHours();
+      const minutes = String(parsed.getMinutes()).padStart(2, "0");
+      const ampm = hour24 >= 12 ? "PM" : "AM";
+      const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+      return `${hour12}:${minutes} ${ampm}`;
+    }
+
+    return raw;
+  };
+
   const timeSlots = [
     "12:00 AM", "1:00 AM", "2:00 AM", "3:00 AM", "4:00 AM", "5:00 AM",
     "6:00 AM", "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
@@ -99,20 +149,47 @@ export default function EditActivity() {
   };
 
   const filteredStartTimes = useMemo(() => {
-    if (!selectedDate) return timeSlots;
+    if (!selectedDate || !isValid(selectedDate)) {
+      if (!selectedTimeStart || timeSlots.includes(selectedTimeStart)) return timeSlots;
+      return [selectedTimeStart, ...timeSlots];
+    }
+
     if (isSameDay(selectedDate, new Date())) {
       const nowHour = new Date().getHours();
-      return timeSlots.filter((slot) => get24HourSlotValue(slot) > nowHour);
+      const futureSlots = timeSlots.filter((slot) => get24HourSlotValue(slot) > nowHour);
+      if (selectedTimeStart && !futureSlots.includes(selectedTimeStart)) {
+        return [selectedTimeStart, ...futureSlots];
+      }
+      return futureSlots;
     }
+
+    if (selectedTimeStart && !timeSlots.includes(selectedTimeStart)) {
+      return [selectedTimeStart, ...timeSlots];
+    }
+
     return timeSlots;
-  }, [selectedDate]);
+  }, [selectedDate, selectedTimeStart]);
 
   const filteredEndTimes = useMemo(() => {
-    if (!selectedTimeStart) return timeSlots;
+    if (!selectedTimeStart) {
+      if (!selectedTimeEnd || timeSlots.includes(selectedTimeEnd)) return timeSlots;
+      return [selectedTimeEnd, ...timeSlots];
+    }
+
     const startIndex = timeSlots.indexOf(selectedTimeStart);
-    if (startIndex < 0) return timeSlots;
-    return [...timeSlots.slice(startIndex + 1), ...timeSlots.slice(0, startIndex)];
-  }, [selectedTimeStart]);
+    if (startIndex < 0) {
+      if (selectedTimeEnd && !timeSlots.includes(selectedTimeEnd)) {
+        return [selectedTimeEnd, ...timeSlots];
+      }
+      return timeSlots;
+    }
+
+    const endSlots = [...timeSlots.slice(startIndex + 1), ...timeSlots.slice(0, startIndex)];
+    if (selectedTimeEnd && !endSlots.includes(selectedTimeEnd)) {
+      return [selectedTimeEnd, ...endSlots];
+    }
+    return endSlots;
+  }, [selectedTimeStart, selectedTimeEnd]);
 
   /* ---------------- Load Activity ---------------- */
   useEffect(() => {
@@ -126,24 +203,41 @@ export default function EditActivity() {
         const a = res.data?.activity;
         if (!a) throw new Error("Activity not found");
 
-        setValue("location", a.city);
-        setValue("sport", a.sport);
+        setValue("location", a.city || a.location || "");
+        setValue("sport", a.sport || "");
+        setValue("academyId", String(a.academyId || ""));
         const localStart = utcDateTimeToLocalParts(a.date, a.fromTime);
         const localEnd = utcDateTimeToLocalParts(a.date, a.toTime);
-        setValue("date", new Date(localStart?.date || a.date));
-        setValue("timeStart", localStart?.time || a.fromTime);
-        setValue("timeEnd", localEnd?.time || a.toTime);
-        setValue("courtNumber", a.courtNumber);
-        setValue("skillLevel", a.skillLevel);
-        setValue("maxParticipants", a.maxPlayers);
-        setValue("price", a.pricePerParticipant);
+        const resolvedDate = new Date(localStart?.date || a.date);
+        setValue("date", isValid(resolvedDate) ? resolvedDate : new Date());
+        setValue("timeStart", to12HourSlot(localStart?.time || a.fromTime));
+        setValue("timeEnd", to12HourSlot(localEnd?.time || a.toTime));
+        setValue("courtNumber", a.courtNumber ? String(a.courtNumber) : "");
+        setValue("skillLevel", a.skillLevel || "All Levels");
+        setValue("maxParticipants", Number(a.maxPlayers || 2));
+        setValue("price", Number(a.pricePerParticipant || 0));
         setValue("address", a.address || "");
+
+        setAcademiesList((prev) => {
+          const academyId = String(a.academyId || "");
+          if (!academyId) return prev;
+          if (prev.some((academy) => String(academy._id) === academyId)) return prev;
+          return [
+            {
+              _id: academyId,
+              name: a.academy || "Academy",
+              address: a.address || "",
+            },
+            ...prev,
+          ];
+        });
 
         setLoading(false);
       } catch (err: any) {
         if (err?.code === "ERR_CANCELED") return;
         console.error("Load activity failed:", err);
         toast({ title: "Failed to load activity", variant: "destructive" });
+        setLoading(false);
       }
     };
 
@@ -189,7 +283,9 @@ export default function EditActivity() {
       const utcEnd = localDateTimeToUtcParts(data.date, data.timeEnd);
       await axios.put(`/api/activity/updateActivity/${activityId}`, {
         hostEmail: userEmail,
+        hostId: userId,
         city: data.location,
+        location: data.location,
         sport: data.sport,
         academyId: data.academyId,
         address: data.address,
@@ -207,153 +303,272 @@ export default function EditActivity() {
     }
   };
 
-  if (loading) return null;
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/");
+  };
+
+  if (!userEmail || !userId) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
+        <Navbar onLogout={handleLogout} />
+        <div className="container mx-auto px-4 py-8 md:py-12 max-w-3xl">
+          <Card className="border-slate-200">
+            <CardContent className="p-10 text-center text-slate-500">Unauthorized access. Please log in again.</CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
+        <Navbar onLogout={handleLogout} />
+        <div className="container mx-auto px-4 py-8 md:py-12 max-w-3xl">
+          <Card className="border-slate-200">
+            <CardContent className="p-10 text-center text-slate-500">Loading activity details...</CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   /* ---------------- UI ---------------- */
 
+  const skillLevelConfig: Record<string, { icon: React.ReactNode }> = {
+    "All Levels": { icon: <Users className="w-3 h-3" /> },
+    Beginner: { icon: <Star className="w-3 h-3" /> },
+    Intermediate: { icon: <Zap className="w-3 h-3" /> },
+    Advanced: { icon: <Trophy className="w-3 h-3" /> },
+  };
+
   return (
-    <div className="container max-w-3xl py-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Edit Activity</CardTitle>
-          <CardDescription>Update your hosted activity</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            {/* Location */}
-            <div>
-              <Label>Location</Label>
-              <Select value={selectedLocation} onValueChange={(v) => setValue("location", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {cities.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
+      <Navbar onLogout={handleLogout} />
 
-            {/* Sport */}
-            <div>
-              <Label>Sport</Label>
-              <Select value={selectedSport} onValueChange={(v) => setValue("sport", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {sportsList.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+      <div className="container mx-auto px-4 py-8 md:py-12 max-w-3xl">
+        <div className="mb-8">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mb-4 text-slate-600 hover:text-slate-900 -ml-2"
+            onClick={() => navigate('/activities')}
+          >
+            <ArrowLeft className="w-4 h-4 mr-1" />
+            Back to Activities
+          </Button>
+          <h1 className="text-4xl font-bold text-slate-900 mb-2">Edit Activity</h1>
+          <p className="text-slate-600 text-lg">
+            Update your hosted activity details and keep your players informed
+          </p>
+        </div>
 
-            {/* Academy */}
-            <div>
-              <Label>Academy</Label>
-              <Select
-                value={watch("academyId") || ""}
-                disabled={!academiesList.length}
-                onValueChange={(v) => setValue("academyId", v)}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {academiesList.map(a => (
-                    <SelectItem key={a._id} value={a._id}>
-                      {a.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        <Card className="overflow-hidden border-slate-200">
+          <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50 border-b py-4 px-6">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Zap className="w-4 h-4 text-blue-600" />
+              Activity Details
+            </CardTitle>
+            <CardDescription className="mt-0.5">
+              Make your changes and save to update this activity
+            </CardDescription>
+          </CardHeader>
 
-            {/* Address */}
-            <div>
-              <Label>Address</Label>
-              <Input value={watch("address") || ""} onChange={(e) => setValue("address", e.target.value)} />
-            </div>
-
-            {/* Date */}
-            <div>
-              <Label>Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {selectedDate ? format(selectedDate, "PPP") : "Pick a date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="p-0">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={(d) => setValue("date", d!)}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {/* Time */}
-            <div className="grid grid-cols-2 gap-4">
+          <CardContent className="p-6">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div>
-                <Label>Start Time</Label>
-                <Select value={selectedTimeStart || ""} onValueChange={(v) => setValue("timeStart", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {filteredStartTimes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5" /> Venue
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">City</Label>
+                    <Select value={selectedLocation} onValueChange={(v) => setValue("location", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select City" /></SelectTrigger>
+                      <SelectContent>
+                        {cities.map((city) => (
+                          <SelectItem key={city} value={city}>{safeCapitalize(city)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Sport</Label>
+                    <Select value={selectedSport} onValueChange={(v) => setValue("sport", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select Sport" /></SelectTrigger>
+                      <SelectContent>
+                        {sportsList.map((sport) => (
+                          <SelectItem key={sport} value={sport}>{safeCapitalize(sport)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <Label className="text-sm font-medium">Academy</Label>
+                    <Select
+                      value={watch("academyId") || ""}
+                      disabled={!academiesList.length}
+                      onValueChange={(v) => setValue("academyId", v)}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select Academy" /></SelectTrigger>
+                      <SelectContent>
+                        {academiesList.map((academy) => (
+                          <SelectItem key={academy._id} value={String(academy._id)}>
+                            {safeCapitalize(academy.name)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <Label className="text-sm font-medium flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400" /> Address
+                    </Label>
+                    <Input
+                      value={watch("address") || ""}
+                      readOnly
+                      placeholder="Enter address"
+                      className="bg-slate-50 cursor-not-allowed"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div>
-                <Label>End Time</Label>
-                <Select value={selectedTimeEnd || ""} onValueChange={(v) => setValue("timeEnd", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {filteredEndTimes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" /> Schedule
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Date</Label>
+                    <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start font-normal">
+                          <CalendarIcon className="mr-2 h-4 w-4 text-slate-400" />
+                          {selectedDate && isValid(selectedDate) ? format(selectedDate, "PP") : "Pick a date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={selectedDate}
+                          onSelect={(d) => {
+                            setValue("date", d!);
+                            setIsDatePickerOpen(false);
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Start Time</Label>
+                    <Select value={selectedTimeStart || ""} onValueChange={(v) => setValue("timeStart", v)}>
+                      <SelectTrigger><SelectValue placeholder="Start Time" /></SelectTrigger>
+                      <SelectContent>
+                        {filteredStartTimes.map((time) => (
+                          <SelectItem key={time} value={time}>{time}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">End Time</Label>
+                    <Select value={selectedTimeEnd || ""} onValueChange={(v) => setValue("timeEnd", v)}>
+                      <SelectTrigger><SelectValue placeholder="End Time" /></SelectTrigger>
+                      <SelectContent>
+                        {filteredEndTimes.map((time) => (
+                          <SelectItem key={time} value={time}>{time}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {!!courts.length && (
+                  <div className="mt-4 space-y-1.5">
+                    <Label className="text-sm font-medium">Court</Label>
+                    <Select value={watch("courtNumber") || ""} onValueChange={(v) => setValue("courtNumber", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select Court" /></SelectTrigger>
+                      <SelectContent>
+                        {courts.map((court) => (
+                          <SelectItem key={court.courtNumber} value={String(court.courtNumber)}>
+                            Court {court.courtNumber}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
-            </div>
 
-            {/* Skill Level */}
-            <div>
-              <Label>Skill Level</Label>
-              <Select
-                value={selectedSkillLevel}
-                onValueChange={(v) =>
-                  setValue("skillLevel", v as "All Levels" | "Beginner" | "Intermediate" | "Advanced")
-                }
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {["All Levels", "Beginner", "Intermediate", "Advanced"].map(level => (
-                    <SelectItem key={level} value={level}>{level}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <Trophy className="w-3.5 h-3.5" /> Activity Settings
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Skill Level</Label>
+                    <Select
+                      value={selectedSkillLevel}
+                      onValueChange={(v) =>
+                        setValue("skillLevel", v as "All Levels" | "Beginner" | "Intermediate" | "Advanced")
+                      }
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {["All Levels", "Beginner", "Intermediate", "Advanced"].map((level) => (
+                          <SelectItem key={level} value={level}>
+                            <span className="inline-flex items-center gap-1.5">
+                              {skillLevelConfig[level].icon}
+                              {level}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-            {/* Max Participants */}
-            <div>
-              <Label>Max Participants</Label>
-              <Input
-                type="number"
-                min={2}
-                value={maxParticipants || 2}
-                onChange={(e) => setValue("maxParticipants", parseInt(e.target.value))}
-              />
-            </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-slate-400" /> Max Players
+                    </Label>
+                    <Input
+                      type="number"
+                      min={2}
+                      value={maxParticipants || 2}
+                      onChange={(e) => setValue("maxParticipants", parseInt(e.target.value || '2', 10))}
+                    />
+                  </div>
 
-            {/* Price */}
-            <div>
-              <Label>Price Per Person (CAD)</Label>
-              <Input
-                type="number"
-                min={0}
-                value={watch("price") || 0}
-                onChange={(e) => setValue("price", parseFloat(e.target.value))}
-              />
-            </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium flex items-center gap-1.5">
+                      <DollarSign className="w-3.5 h-3.5 text-slate-400" /> Price / Person
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={watch("price") || 0}
+                      onChange={(e) => setValue("price", parseFloat(e.target.value || '0'))}
+                    />
+                  </div>
+                </div>
+              </div>
 
-            <Button className="w-full">Update Activity</Button>
-          </form>
-        </CardContent>
-      </Card>
+              <Button type="submit" className="w-full h-11 text-base font-semibold">
+                <Zap className="w-4 h-4 mr-2" />
+                Update Activity
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

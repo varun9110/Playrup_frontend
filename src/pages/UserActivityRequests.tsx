@@ -1,33 +1,82 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Card, CardContent } from '@/components/ui/card';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Navbar } from '@/components/layout';
 import {
   Calendar,
   Clock,
-  MapPin,
   Users,
-  MoreVertical,
+  Inbox,
+  Send,
+  CheckCircle2,
+  XCircle,
+  ArrowLeft,
 } from 'lucide-react';
 import { utcDateTimeToLocalParts } from '@/lib/utils';
 
+type ActivityData = {
+  _id: string;
+  sport?: string;
+  academy?: string;
+  date?: string;
+  fromTime?: string;
+  toTime?: string;
+  localDateObj?: Date;
+  localFromTime?: string;
+  localToTime?: string;
+};
+
+type RequestUser = {
+  _id: string;
+  name?: string;
+};
+
+type HostDetails = {
+  name?: string;
+};
+
+type RequestItem = {
+  _id: string;
+  status?: 'Pending' | 'Accepted' | 'Rejected' | string;
+  approving?: boolean;
+  rejecting?: boolean;
+  withdrawing?: boolean;
+  userId: RequestUser;
+  hostDetails?: HostDetails;
+  activityId: ActivityData;
+};
+
 export default function UserActivityRequests() {
-  const [incomingRequests, setIncomingRequests] = useState([]);
-  const [sentRequests, setSentRequests] = useState([]);
+  const navigate = useNavigate();
+  const [incomingRequests, setIncomingRequests] = useState<RequestItem[]>([]);
+  const [sentRequests, setSentRequests] = useState<RequestItem[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const storedUser = JSON.parse(localStorage.getItem('user') || 'null');
+  const userEmail = storedUser?.email;
+  const userId = storedUser?.userId;
 
-  const userEmail = JSON.parse(localStorage.getItem('user'))?.email;
-  const userId = JSON.parse(localStorage.getItem("user"))?.userId;
+  const capitalizeWordsSafe = (value?: string) => {
+    if (!value) return '';
+    return value
+      .toLowerCase()
+      .trim()
+      .split(/[ _-]+/)
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
 
   useEffect(() => {
     fetchIncomingRequests();
     fetchSentRequests();
   }, []);
 
-  const sortRequestsByActivityDate = (requests) => {
+  const sortRequestsByActivityDate = (requests: RequestItem[]) => {
     return requests.sort((a, b) => {
       const dateA = a.activityId?.localDateObj instanceof Date
         ? a.activityId.localDateObj.getTime()
@@ -49,10 +98,10 @@ export default function UserActivityRequests() {
       );
 
       const requests = res.data.requests || [];
-      const normalizedRequests = requests.map((request) => {
-        const activity = request.activityId || {};
-        const localStart = utcDateTimeToLocalParts(activity.date, activity.fromTime);
-        const localEnd = utcDateTimeToLocalParts(activity.date, activity.toTime);
+      const normalizedRequests = requests.map((request: RequestItem) => {
+        const activity: ActivityData = (request.activityId || {}) as ActivityData;
+        const localStart = utcDateTimeToLocalParts(activity.date || '', activity.fromTime || '');
+        const localEnd = utcDateTimeToLocalParts(activity.date || '', activity.toTime || '');
         return {
           ...request,
           activityId: {
@@ -83,10 +132,10 @@ export default function UserActivityRequests() {
       );
 
       const requests = res.data.requests || [];
-      const normalizedRequests = requests.map((request) => {
-        const activity = request.activityId || {};
-        const localStart = utcDateTimeToLocalParts(activity.date, activity.fromTime);
-        const localEnd = utcDateTimeToLocalParts(activity.date, activity.toTime);
+      const normalizedRequests = requests.map((request: RequestItem) => {
+        const activity: ActivityData = (request.activityId || {}) as ActivityData;
+        const localStart = utcDateTimeToLocalParts(activity.date || '', activity.fromTime || '');
+        const localEnd = utcDateTimeToLocalParts(activity.date || '', activity.toTime || '');
         return {
           ...request,
           activityId: {
@@ -110,11 +159,9 @@ export default function UserActivityRequests() {
 
 
 
-  const handleViewProfile = (email) => {
+  const handleViewProfile = (_userId: string) => {};
 
-  };
-
-  const handleApprove = async (requestId, activityId, userId) => {
+  const handleApprove = async (requestId: string, activityId: string, requestUserId: string) => {
     try {
       // Optional: disable button while processing
       setIncomingRequests(prev =>
@@ -128,7 +175,7 @@ export default function UserActivityRequests() {
         {
           requestId,
           activityId,
-          userId
+          userId: requestUserId
         }
       );
 
@@ -154,7 +201,7 @@ export default function UserActivityRequests() {
   };
 
 
-  const handleReject = async (requestId, activityId, userId) => {
+  const handleReject = async (requestId: string, activityId: string, requestUserId: string) => {
     try {
       // Disable button while rejecting
       setIncomingRequests(prev =>
@@ -168,7 +215,7 @@ export default function UserActivityRequests() {
         {
           requestId,
           activityId,
-          userId
+          userId: requestUserId
         }
       );
 
@@ -194,7 +241,7 @@ export default function UserActivityRequests() {
   };
 
 
-  const handleWithdraw = async (requestId, activityId, userId) => {
+  const handleWithdraw = async (requestId: string, activityId: string, requestUserId: string) => {
     try {
       // Disable button while withdrawing
       setSentRequests(prev =>
@@ -208,7 +255,7 @@ export default function UserActivityRequests() {
         {
           requestId,
           activityId,
-          userId
+          userId: requestUserId
         }
       );
 
@@ -235,32 +282,44 @@ export default function UserActivityRequests() {
 
 
 
-  const renderIncomingRequestCard = (request) => {
+  const pendingSentCount = useMemo(
+    () => sentRequests.filter((request) => request.status === 'Pending').length,
+    [sentRequests]
+  );
+
+  const acceptedSentCount = useMemo(
+    () => sentRequests.filter((request) => request.status === 'Accepted').length,
+    [sentRequests]
+  );
+
+  const renderIncomingRequestCard = (request: RequestItem) => {
     const { activityId } = request;
 
     return (
-      <Card key={request._id}>
-        <CardContent className="p-5 space-y-3">
+      <Card key={request._id} className="overflow-hidden border-slate-200 hover:shadow-md transition-shadow">
+        <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50 border-b py-4">
           <div className="flex justify-between items-start">
             <div>
               <h3 className="font-semibold text-lg capitalize">
-                {activityId.sport}
+                {capitalizeWordsSafe(activityId.sport) || 'Activity'}
               </h3>
               <p className="text-sm text-muted-foreground">
-                {activityId.academy}
+                {capitalizeWordsSafe(activityId.academy) || 'Academy'}
               </p>
             </div>
 
-            <Badge variant="outline" className="text-yellow-600 border-yellow-600">
+            <Badge variant="outline" className="text-amber-600 border-amber-600 bg-amber-50">
               Pending
             </Badge>
           </div>
+        </CardHeader>
 
-          <div className="text-sm grid grid-cols-2 gap-2">
+        <CardContent className="p-5 space-y-4">
+          <div className="text-sm grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex items-center gap-1">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <Calendar className="h-4 w-4 text-blue-600" />
               <p>
-                {(activityId.localDateObj || new Date(activityId.date)).toLocaleDateString(undefined, {
+                {(activityId.localDateObj || new Date(activityId.date || '')).toLocaleDateString(undefined, {
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric',
@@ -268,21 +327,22 @@ export default function UserActivityRequests() {
               </p>
             </div>
 
-            <div>
-              <span className="text-muted-foreground">Time</span>
+            <div className="flex items-center gap-1">
+              <Clock className="h-4 w-4 text-blue-600" />
+              <span className="text-muted-foreground">Time:</span>
               <p className="font-medium">
                 {activityId.localFromTime || activityId.fromTime} – {activityId.localToTime || activityId.toTime}
               </p>
             </div>
 
-            <div className="col-span-2">
-              <span className="text-muted-foreground">Requested by</span>
+            <div className="col-span-1 sm:col-span-2 flex items-center gap-1">
+              <Users className="h-4 w-4 text-blue-600" />
+              <span className="text-muted-foreground">Requested by:</span>
               <p className="font-medium">{request.userId.name}</p>
             </div>
           </div>
 
           <div className="flex justify-between mt-3 flex-wrap gap-2">
-            {/* Left side: View Profile */}
             <Button
               size="sm"
               className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -291,7 +351,6 @@ export default function UserActivityRequests() {
               View Player Profile
             </Button>
 
-            {/* Right side: Approve / Reject */}
             <div className="flex gap-2">
               <Button
                 size="sm"
@@ -325,26 +384,25 @@ export default function UserActivityRequests() {
 
             </div>
           </div>
-
         </CardContent>
       </Card>
 
     );
   };
 
-  const renderSentRequestCard = (request) => {
+  const renderSentRequestCard = (request: RequestItem) => {
     const { activityId } = request;
 
     return (
-      <Card key={request._id}>
-        <CardContent className="p-5 space-y-3">
+      <Card key={request._id} className="overflow-hidden border-slate-200 hover:shadow-md transition-shadow">
+        <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b py-4">
           <div className="flex justify-between items-start">
             <div>
               <h3 className="font-semibold text-lg capitalize">
-                {activityId.sport}
+                {capitalizeWordsSafe(activityId.sport) || 'Activity'}
               </h3>
               <p className="text-sm text-muted-foreground">
-                {activityId.academy}
+                {capitalizeWordsSafe(activityId.academy) || 'Academy'}
               </p>
             </div>
 
@@ -365,12 +423,14 @@ export default function UserActivityRequests() {
             </Badge>
 
           </div>
+        </CardHeader>
 
-          <div className="text-sm grid grid-cols-2 gap-2">
+        <CardContent className="p-5 space-y-4">
+          <div className="text-sm grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex items-center gap-1">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <Calendar className="h-4 w-4 text-green-600" />
               <p>
-                {(activityId.localDateObj || new Date(activityId.date)).toLocaleDateString(undefined, {
+                {(activityId.localDateObj || new Date(activityId.date || '')).toLocaleDateString(undefined, {
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric',
@@ -378,15 +438,17 @@ export default function UserActivityRequests() {
               </p>
             </div>
 
-            <div>
-              <span className="text-muted-foreground">Time</span>
+            <div className="flex items-center gap-1">
+              <Clock className="h-4 w-4 text-green-600" />
+              <span className="text-muted-foreground">Time:</span>
               <p className="font-medium">
                 {activityId.localFromTime || activityId.fromTime} – {activityId.localToTime || activityId.toTime}
               </p>
             </div>
 
-            <div className="col-span-2">
-              <span className="text-muted-foreground">Requested to</span>
+            <div className="col-span-1 sm:col-span-2 flex items-center gap-1">
+              <Users className="h-4 w-4 text-green-600" />
+              <span className="text-muted-foreground">Requested to:</span>
               <p className="font-medium">{request.hostDetails.name}</p>
             </div>
           </div>
@@ -418,56 +480,144 @@ export default function UserActivityRequests() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-accent/5 p-4">
-      <div className="container mx-auto max-w-4xl">
-        <h1 className="text-3xl font-bold mb-6">My Requests</h1>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
+      <Navbar onLogout={() => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        navigate('/');
+      }} />
 
-        <Tabs defaultValue="incoming" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="incoming">Incoming Requests</TabsTrigger>
-            <TabsTrigger value="sent">Sent Requests</TabsTrigger>
-          </TabsList>
+      <div className="container mx-auto px-4 py-8 md:py-12 max-w-7xl">
+        <div className="mb-8">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mb-4 text-slate-600 hover:text-slate-900 -ml-2"
+            onClick={() => navigate('/dashboard')}
+          >
+            <ArrowLeft className="w-4 h-4 mr-1" />
+            Back to Dashboard
+          </Button>
+          <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-2">Activity Requests</h1>
+          <p className="text-slate-600 text-lg">
+            Manage incoming join requests and track requests you have sent.
+          </p>
+        </div>
 
-          <TabsContent value="incoming" className="space-y-4">
-            {loading ? (
-              <Card>
-                <CardContent className="p-6 text-center">
-                  <p className="text-muted-foreground">Loading requests…</p>
-                </CardContent>
-              </Card>
-            ) : incomingRequests.length ? (
-              incomingRequests.map(renderIncomingRequestCard)
-            ) : (
-              <Card>
-                <CardContent className="p-6 text-center">
-                  <p className="text-muted-foreground">
-                    No pending incoming requests
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <Card className="border-slate-200">
+            <CardContent className="p-5 flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-blue-100">
+                <Inbox className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Incoming Pending</p>
+                <p className="text-2xl font-bold text-slate-900">{incomingRequests.length}</p>
+              </div>
+            </CardContent>
+          </Card>
 
-          <TabsContent value="sent">
-            {loading ? (
-              <Card>
-                <CardContent className="p-6 text-center">
-                  <p className="text-muted-foreground">Loading requests…</p>
-                </CardContent>
-              </Card>
-            ) : sentRequests.length ? (
-              sentRequests.map(renderSentRequestCard)
-            ) : (
-              <Card>
-                <CardContent className="p-6 text-center">
-                  <p className="text-muted-foreground">
-                    No pending sent requests
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-        </Tabs>
+          <Card className="border-slate-200">
+            <CardContent className="p-5 flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-amber-100">
+                <Send className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Sent Pending</p>
+                <p className="text-2xl font-bold text-slate-900">{pendingSentCount}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200">
+            <CardContent className="p-5 flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-emerald-100">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Accepted</p>
+                <p className="text-2xl font-bold text-slate-900">{acceptedSentCount}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200">
+            <CardContent className="p-5 flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-slate-100">
+                <XCircle className="w-5 h-5 text-slate-600" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Total Sent</p>
+                <p className="text-2xl font-bold text-slate-900">{sentRequests.length}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="border-slate-200 overflow-hidden">
+          <CardContent className="p-0">
+            <Tabs defaultValue="incoming" className="space-y-0">
+              <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border-b border-slate-100 px-6 pt-5 pb-0">
+                <TabsList className="bg-transparent border-0 h-auto p-0 gap-0 w-full justify-start">
+                  <TabsTrigger
+                    value="incoming"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-slate-500 px-5 pb-3 pt-1 font-medium"
+                  >
+                    Incoming Requests
+                    <span className="ml-2 rounded-full bg-blue-100 text-blue-700 text-[10px] font-semibold px-2 py-0.5">
+                      {incomingRequests.length}
+                    </span>
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="sent"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-slate-500 px-5 pb-3 pt-1 font-medium"
+                  >
+                    Sent Requests
+                    <span className="ml-2 rounded-full bg-slate-200 text-slate-700 text-[10px] font-semibold px-2 py-0.5">
+                      {sentRequests.length}
+                    </span>
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+
+              <TabsContent value="incoming" className="p-6 space-y-4 mt-0">
+                {loading ? (
+                  <Card className="border-slate-200">
+                    <CardContent className="p-10 text-center text-slate-500">Loading requests...</CardContent>
+                  </Card>
+                ) : incomingRequests.length ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {incomingRequests.map(renderIncomingRequestCard)}
+                  </div>
+                ) : (
+                  <Card className="border-slate-200">
+                    <CardContent className="p-10 text-center text-slate-500">
+                      No pending incoming requests.
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+
+              <TabsContent value="sent" className="p-6 space-y-4 mt-0">
+                {loading ? (
+                  <Card className="border-slate-200">
+                    <CardContent className="p-10 text-center text-slate-500">Loading requests...</CardContent>
+                  </Card>
+                ) : sentRequests.length ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {sentRequests.map(renderSentRequestCard)}
+                  </div>
+                ) : (
+                  <Card className="border-slate-200">
+                    <CardContent className="p-10 text-center text-slate-500">
+                      No sent requests yet.
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

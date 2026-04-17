@@ -54,6 +54,7 @@ export default function AllActivities() {
   const [selectedSport, setSelectedSport] = useState('all');
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [withdrawingActivityIds, setWithdrawingActivityIds] = useState([]);
 
   const [openCancel, setOpenCancel] = useState(false);
   const [activityToCancel, setActivityToCancel] = useState(null);
@@ -103,10 +104,54 @@ export default function AllActivities() {
     }
   };
 
+  const fetchMyRequestsMap = async () => {
+    if (!userEmail || !userId) return;
+
+    try {
+      const res = await axios.post('/api/request/my-requests', { userEmail, userId });
+      const requests = res.data?.requests || [];
+
+      const latestByActivity = {};
+      requests.forEach((request) => {
+        const activityId = request?.activityId?._id;
+        if (!activityId) return;
+
+        const prev = latestByActivity[activityId];
+        if (!prev || new Date(request.createdAt || 0) > new Date(prev.createdAt || 0)) {
+          latestByActivity[activityId] = request;
+        }
+      });
+
+      setActivities((prev) =>
+        prev.map((activity) => {
+          const req = latestByActivity[activity._id];
+          if (!req) return activity;
+
+          const status = req.status || '';
+          const isPendingOrAccepted = status === 'Pending' || status === 'Accepted' || status === 'Approved';
+
+          return {
+            ...activity,
+            requestId: req._id,
+            requestStatus: status,
+            requestedByCurrentUser: isPendingOrAccepted,
+          };
+        })
+      );
+    } catch (error) {
+      console.error('Failed to fetch my request map', error);
+    }
+  };
+
 
 
   useEffect(() => {
-    fetchActivities();
+    const bootstrap = async () => {
+      await fetchActivities();
+      await fetchMyRequestsMap();
+    };
+
+    bootstrap();
   }, []);
 
   // Helper functions
@@ -115,9 +160,24 @@ export default function AllActivities() {
   };
 
   const isRequested = (activity) => {
+    if (activity.requestStatus === 'Pending' || activity.requestStatus === 'Accepted' || activity.requestStatus === 'Approved') {
+      return true;
+    }
+
+    if (activity.requestedByCurrentUser) return true;
+
     return activity.pendingRequests?.some((player) => {
       const comparablePlayer = getComparableValue(player);
-      return comparablePlayer === currentUserId || player === userEmail;
+
+      if (comparablePlayer && comparablePlayer === currentUserId) {
+        return true;
+      }
+
+      if (typeof player === 'string') {
+        return player.toLowerCase() === String(userEmail || '').toLowerCase();
+      }
+
+      return false;
     });
   };
 
@@ -142,12 +202,19 @@ export default function AllActivities() {
         prev.map((a) =>
           a._id === activityId
             ? {
-              ...a,
-              pendingRequests: [...(a.pendingRequests || []), userEmail],
-            }
+                ...a,
+                requestedByCurrentUser: true,
+                requestStatus: 'Pending',
+                pendingRequests: [
+                  ...(a.pendingRequests || []),
+                  userId,
+                ],
+              }
             : a
         )
       );
+
+      await fetchMyRequestsMap();
     } catch (err) {
       console.error(err);
       toast({
@@ -157,9 +224,56 @@ export default function AllActivities() {
     }
   };
 
+  const handleWithdrawRequest = async (activity) => {
+    const requestId = activity?.requestId;
+    if (!requestId || !activity?._id) {
+      toast({
+        title: 'Unable to withdraw right now. Please refresh and try again.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setWithdrawingActivityIds((prev) => [...prev, activity._id]);
+
+      const res = await axios.post('/api/request/withdraw-request', {
+        requestId,
+        activityId: activity._id,
+        userId,
+      });
+
+      toast({ title: res.data?.message || 'Request withdrawn' });
+
+      setActivities((prev) =>
+        prev.map((a) =>
+          a._id === activity._id
+            ? {
+                ...a,
+                requestStatus: 'Withdrawn',
+                requestedByCurrentUser: false,
+                requestId: null,
+                pendingRequests: (a.pendingRequests || []).filter(
+                  (player) => getComparableValue(player) !== currentUserId
+                ),
+              }
+            : a
+        )
+      );
+    } catch (error) {
+      console.error('Failed to withdraw request', error);
+      toast({
+        title: error.response?.data?.message || 'Failed to withdraw request',
+        variant: 'destructive',
+      });
+    } finally {
+      setWithdrawingActivityIds((prev) => prev.filter((id) => id !== activity._id));
+    }
+  };
+
   const handleEditActivity = (activity) => {
-    console.log('Edit activity:', activity);
-    // navigate(`/activities/edit/${activity._id}`);
+    if (!activity?._id) return;
+    navigate(`/activities/edit/${activity._id}`);
   };
 
   const openCancelModal = (activity) => {
@@ -422,13 +536,16 @@ export default function AllActivities() {
                       <Button
                         size="sm"
                         className="w-full"
-                        onClick={() => handleJoinActivity(activity._id)}
-                        disabled={isJoined(activity) || isRequested(activity)}
+                        variant={isRequested(activity) ? 'destructive' : 'default'}
+                        onClick={() => (isRequested(activity) ? handleWithdrawRequest(activity) : handleJoinActivity(activity._id))}
+                        disabled={isJoined(activity) || withdrawingActivityIds.includes(activity._id)}
                       >
-                        {isJoined(activity)
+                        {withdrawingActivityIds.includes(activity._id)
+                          ? 'Withdrawing...'
+                          : isJoined(activity)
                           ? 'Joined'
                           : isRequested(activity)
-                            ? 'Requested'
+                            ? 'Withdraw'
                             : 'Join Activity'}
                       </Button>
 
