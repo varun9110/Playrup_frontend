@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import axios from "axios";
+import { Link, useNavigate } from "react-router-dom";
 import {
   format,
   setHours,
@@ -7,17 +8,28 @@ import {
   setSeconds,
   isSameDay,
   addDays,
-  subDays,
-  addHours
+  subDays
 } from "date-fns";
-import { utcDateTimeToLocalParts } from '@/lib/utils';
+import { capitalizeWords, utcDateTimeToLocalParts } from '@/lib/utils';
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "framer-motion";
+import { Navbar } from "@/components/layout";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Building2,
+  Calendar,
+  Clock3,
+  RefreshCw,
+  Settings,
+  Trophy,
+} from "lucide-react";
 
 interface Booking {
   id: string;
@@ -43,6 +55,7 @@ interface Academy {
 }
 
 export default function AcademyBooking() {
+  const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -51,13 +64,43 @@ export default function AcademyBooking() {
   const [sports, setSports] = useState<Sport[]>([]);
   const [selectedSport, setSelectedSport] = useState<string>("");
   const [cancelLoading, setCancelLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const dateInputRef = useRef<HTMLInputElement | null>(null);
 
-  const userId = JSON.parse(localStorage.getItem("user") || "{}")?.userId;
+  const user = JSON.parse(localStorage.getItem("user") || "{}") || {};
+  const userId = user?.userId;
 
   const startDate = format(subDays(selectedDate, 1), "yyyy-MM-dd");
   const endDate = format(addDays(selectedDate, 1), "yyyy-MM-dd");
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/");
+  };
+
+  const handleDateInputChange = (value: string) => {
+    if (!value) return;
+    const [year, month, day] = value.split("-").map(Number);
+    if (!year || !month || !day) return;
+
+    // Parse as local date at midday to avoid UTC/date-shift issues across environments.
+    setSelectedDate(new Date(year, month - 1, day, 12, 0, 0));
+  };
+
+  const openDatePicker = () => {
+    const input = dateInputRef.current;
+    if (!input) return;
+
+    if (typeof input.showPicker === "function") {
+      input.showPicker();
+      return;
+    }
+
+    input.focus();
+  };
 
   /* ---------------- Fetch Academies ---------------- */
   const fetchAcademies = async () => {
@@ -145,11 +188,6 @@ export default function AcademyBooking() {
     };
   }, [selectedDate, selectedAcademy, selectedSport]);
 
-  /* ---------------- Filtered Bookings ---------------- */
-  const bookingsForDay = bookings
-    .filter(b => isSameDay(b.date, selectedDate))
-    .filter(b => selectedSport ? b.sport === selectedSport : true);
-
   /* ---------------- Time Range Based On Sport ---------------- */
   const hours = useMemo(() => {
     const sportObj = sports.find(s => s.sportName === selectedSport);
@@ -194,177 +232,293 @@ export default function AcademyBooking() {
     }
   };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchBookings();
+    setRefreshing(false);
+  };
+
+  const selectedSportConfig = sports.find((sport) => sport.sportName === selectedSport);
+  const bookingsForDay = bookings
+    .filter((b) => isSameDay(b.date, selectedDate))
+    .filter((b) => (selectedSport ? b.sport === selectedSport : true));
+  const selectedAcademyName = academies.find((academy) => academy._id === selectedAcademy)?.name || "-";
+  const activeCourtsCount = new Set(bookingsForDay.map((booking) => booking.court)).size;
+
   return (
-    <div className="p-6 space-y-6">
-      <Card className="rounded-2xl shadow-md">
-        <CardHeader className="flex flex-col space-y-4">
-          <div className="flex justify-between items-center">
-            <CardTitle className="text-xl">
-              Academy Bookings - Day View
-            </CardTitle>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
+      <Navbar onLogout={handleLogout} />
 
-            <div className="flex items-center space-x-2">
-              <Button onClick={() => setSelectedDate(subDays(selectedDate, 1))}>{"<"}</Button>
-
-              <Input
-                type="date"
-                value={format(selectedDate, "yyyy-MM-dd")}
-                onChange={(e) => setSelectedDate(new Date(e.target.value))}
-                className="w-48"
-              />
-
-              <Button onClick={() => setSelectedDate(addDays(selectedDate, 1))}>{">"}</Button>
-
-              <Button onClick={fetchBookings} variant="secondary">
-                Refresh
+      <div className="container mx-auto px-3 md:px-4 py-8 md:py-12 max-w-[96vw] 2xl:max-w-[1700px]">
+        <div className="mb-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold text-slate-800 mb-2">Academy Bookings</h1>
+              <p className="text-slate-500 text-lg">Monitor and manage court reservations with a day-view timeline.</p>
+            </div>
+            <div className="flex gap-3 shrink-0">
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white" asChild>
+                <Link to="/academy-dashboard">
+                  <Building2 className="h-4 w-4 mr-2" />
+                  Academy Dashboard
+                </Link>
+              </Button>
+              <Button variant="outline" className="rounded-lg h-11" asChild>
+                <Link to="/academy-setup">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Academy Setup
+                </Link>
               </Button>
             </div>
           </div>
+        </div>
 
-          <div className="flex space-x-4">
-            <div className="w-72">
-              <Select value={selectedAcademy} onValueChange={setSelectedAcademy}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select Academy" />
-                </SelectTrigger>
-                <SelectContent>
-                  {academies.map((academy) => (
-                    <SelectItem key={academy._id} value={academy._id}>
-                      {academy.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="w-72">
-              <Select value={selectedSport} onValueChange={setSelectedSport}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select Sport" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sports.map((sport) => (
-                    <SelectItem key={sport.sportName} value={sport.sportName}>
-                      {sport.sportName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent>
-          <div
-            className="grid relative border"
-            style={{
-              gridTemplateColumns: `120px repeat(${courts.length}, 1fr)`,
-              gridAutoRows: "64px",
-            }}
-          >
-            {/* Top-left empty cell */}
-            <div className="border p-2 bg-gray-50"></div>
-
-            {/* Header: Court Names */}
-            {courts.map((court) => (
-              <div key={court} className="border p-2 font-semibold text-center">
-                Court {court}
-              </div>
-            ))}
-
-            {/* Track which bookings have been rendered globally */}
-            {(() => {
-              const alreadyRenderedBooking = new Set<string>();
-
-              return hours.map((hour) => (
-                <React.Fragment key={hour.toISOString()}>
-                  {/* Time Column */}
-                  <div className="border p-2 text-sm bg-gray-50">
-                    {format(hour, "hh:mm a")}
-                  </div>
-
-                  {/* Court Columns */}
-                  {courts.map((court) => {
-                    const bookingsForCourt = bookingsForDay.filter((b) => b.court === court);
-
-                    return (
-                      <div key={court} className="relative border">
-                        {bookingsForCourt.map((booking) => {
-                          if (alreadyRenderedBooking.has(booking.id)) return null;
-
-                          const slotHeight = 64; // px per hour
-                          const firstHour = hours[0].getHours() + hours[0].getMinutes() / 60;
-                          const bookingStartHour =
-                            booking.start.getHours() + booking.start.getMinutes() / 60;
-                          const bookingEndHour =
-                            booking.end.getHours() + booking.end.getMinutes() / 60;
-
-                          // Render only at the first hour row that overlaps the booking
-                          if (hour.getHours() + hour.getMinutes() / 60 > bookingStartHour) return null;
-
-                          // Mark booking as rendered
-                          alreadyRenderedBooking.add(booking.id);
-
-                          const top = (bookingStartHour - firstHour) * slotHeight;
-                          const height = (bookingEndHour - bookingStartHour) * slotHeight;
-
-                          return (
-                            <motion.div
-                              key={booking.id}
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              className="absolute left-1 right-1 rounded-xl bg-primary/20 p-2 text-xs shadow-sm cursor-pointer"
-                              style={{ top, height }}
-                              onClick={() => setSelectedBooking(booking)}
-                            >
-                              <div className="font-medium">{booking.userName}</div>
-                              <div>{booking.sport}</div>
-                              <div>
-                                {format(booking.start, "hh:mm a")} - {format(booking.end, "hh:mm a")}
-                              </div>
-                            </motion.div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
-                </React.Fragment>
-              ));
-            })()}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>
-        <DialogContent className="rounded-2xl">
-          <DialogHeader>
-            <DialogTitle>Booking Details</DialogTitle>
-          </DialogHeader>
-
-          {selectedBooking && (
-            <div className="space-y-2 text-sm">
-              <div><strong>User:</strong> {selectedBooking.userName}</div>
-              <div><strong>Sport:</strong> {selectedBooking.sport}</div>
-              <div>
-                <strong>Time:</strong>{" "}
-                {format(selectedBooking.start, "hh:mm a")} -{" "}
-                {format(selectedBooking.end, "hh:mm a")}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+          <Card className="border-slate-200">
+            <CardContent className="flex items-center gap-4 p-5">
+              <div className="p-3 rounded-xl bg-blue-100">
+                <Calendar className="h-5 w-5 text-blue-600" />
               </div>
               <div>
-                <strong>Date:</strong>{" "}
-                {format(selectedBooking.date, "dd MMM yyyy")}
+                <p className="text-xs text-slate-500">Selected Date</p>
+                <p className="text-base md:text-lg font-bold text-slate-800">{format(selectedDate, "dd MMM")}</p>
               </div>
-              <div><strong>Court:</strong> {selectedBooking.court}</div>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200">
+            <CardContent className="flex items-center gap-4 p-5">
+              <div className="p-3 rounded-xl bg-emerald-100">
+                <Trophy className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Bookings Today</p>
+                <p className="text-2xl font-bold text-slate-800">{bookingsForDay.length}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200">
+            <CardContent className="flex items-center gap-4 p-5">
+              <div className="p-3 rounded-xl bg-amber-100">
+                <Clock3 className="h-5 w-5 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Time Window</p>
+                <p className="text-sm font-bold text-slate-800">
+                  {selectedSportConfig ? `${selectedSportConfig.startTime} - ${selectedSportConfig.endTime}` : "-"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200">
+            <CardContent className="flex items-center gap-4 p-5">
+              <div className="p-3 rounded-xl bg-slate-100">
+                <Building2 className="h-5 w-5 text-slate-600" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Active Courts</p>
+                <p className="text-2xl font-bold text-slate-800">{activeCourtsCount}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-              <div className="pt-2">
-                <Button variant="destructive" onClick={cancelSelectedBooking} disabled={cancelLoading}>
-                  {cancelLoading ? 'Cancelling...' : 'Cancel Booking'}
+        <Card className="border-slate-200 overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-slate-50 to-white border-b space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <CardTitle className="text-xl text-slate-800">Day View Timeline</CardTitle>
+                <CardDescription className="text-slate-500 mt-1">Select academy, sport and date to inspect all reservations.</CardDescription>
+              </div>
+              <Badge variant="outline" className="w-fit border-slate-300 text-slate-700">
+                {selectedAcademyName}
+              </Badge>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs font-medium text-slate-500 mb-1.5">Academy</p>
+                {academies.length > 0 ? (
+                  <Tabs value={selectedAcademy} onValueChange={setSelectedAcademy}>
+                    <TabsList className="w-full justify-start flex-wrap h-auto bg-slate-100 p-1 gap-1">
+                      {academies.map((academy) => (
+                        <TabsTrigger
+                          key={academy._id}
+                          value={academy._id}
+                          className="data-[state=active]:bg-white data-[state=active]:text-slate-900 text-slate-600"
+                        >
+                          {capitalizeWords(academy.name)}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                  </Tabs>
+                ) : (
+                  <p className="text-sm text-slate-500">No academies available.</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-slate-500 mb-1.5">Sport</p>
+                {sports.length > 0 ? (
+                  <Tabs value={selectedSport} onValueChange={setSelectedSport}>
+                    <TabsList className="w-full justify-start flex-wrap h-auto bg-slate-100 p-1 gap-1">
+                      {sports.map((sport) => (
+                        <TabsTrigger
+                          key={sport.sportName}
+                          value={sport.sportName}
+                          className="data-[state=active]:bg-white data-[state=active]:text-slate-900 text-slate-600"
+                        >
+                          {capitalizeWords(sport.sportName)}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                  </Tabs>
+                ) : (
+                  <p className="text-sm text-slate-500">No sports configured for this academy.</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-[auto_auto_auto_auto] gap-3 items-end">
+                <Button variant="outline" onClick={() => setSelectedDate(subDays(selectedDate, 1))} className="h-10">
+                  <ArrowLeft className="h-4 w-4 mr-1" /> Prev
+                </Button>
+
+                <Input
+                  ref={dateInputRef}
+                  type="date"
+                  value={format(selectedDate, "yyyy-MM-dd")}
+                  onChange={(e) => handleDateInputChange(e.target.value)}
+                  onClick={openDatePicker}
+                  className="h-10 min-w-[170px] cursor-pointer text-center [text-align-last:center]"
+                />
+
+                <Button variant="outline" onClick={() => setSelectedDate(addDays(selectedDate, 1))} className="h-10">
+                  Next <ArrowRight className="h-4 w-4 ml-1" />
+                </Button>
+
+                <Button
+                  onClick={onRefresh}
+                  className="h-10 bg-blue-600 text-white hover:bg-blue-700"
+                  disabled={refreshing}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-1 ${refreshing ? "animate-spin" : ""}`} />
+                  {refreshing ? "Refreshing..." : "Refresh"}
                 </Button>
               </div>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+          </CardHeader>
+
+          <CardContent className="p-4 md:p-6">
+            {!selectedAcademy || !selectedSport || courts.length === 0 || hours.length === 0 ? (
+              <Card className="border-slate-200">
+                <CardContent className="p-10 text-center text-slate-500">
+                  Select an academy and sport to view court bookings.
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="overflow-auto rounded-lg border border-slate-200">
+                <div
+                  className="grid relative bg-white min-w-[800px]"
+                  style={{
+                    gridTemplateColumns: `120px repeat(${courts.length}, minmax(120px, 1fr))`,
+                    gridAutoRows: "64px",
+                  }}
+                >
+                  <div className="border p-2 bg-slate-50" />
+
+                  {courts.map((court) => (
+                    <div key={court} className="border p-2 font-semibold text-center text-slate-800 bg-slate-50">
+                      Court {court}
+                    </div>
+                  ))}
+
+                  {(() => {
+                    const alreadyRenderedBooking = new Set<string>();
+
+                    return hours.map((hour) => (
+                      <React.Fragment key={hour.toISOString()}>
+                        <div className="border p-2 text-sm bg-slate-50 text-slate-600">
+                          {format(hour, "hh:mm a")}
+                        </div>
+
+                        {courts.map((court) => {
+                          const bookingsForCourt = bookingsForDay.filter((b) => b.court === court);
+
+                          return (
+                            <div key={court} className="relative border">
+                              {bookingsForCourt.map((booking) => {
+                                if (alreadyRenderedBooking.has(booking.id)) return null;
+
+                                const slotHeight = 64;
+                                const firstHour = hours[0].getHours() + hours[0].getMinutes() / 60;
+                                const bookingStartHour = booking.start.getHours() + booking.start.getMinutes() / 60;
+                                const bookingEndHour = booking.end.getHours() + booking.end.getMinutes() / 60;
+
+                                if (hour.getHours() + hour.getMinutes() / 60 > bookingStartHour) return null;
+
+                                alreadyRenderedBooking.add(booking.id);
+
+                                const top = (bookingStartHour - firstHour) * slotHeight;
+                                const height = (bookingEndHour - bookingStartHour) * slotHeight;
+
+                                return (
+                                  <motion.div
+                                    key={booking.id}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    className="absolute left-1 right-1 rounded-xl bg-blue-100 border border-blue-200 p-2 text-xs text-slate-800 shadow-sm cursor-pointer"
+                                    style={{ top, height }}
+                                    onClick={() => setSelectedBooking(booking)}
+                                  >
+                                    <div className="font-medium truncate">{booking.userName}</div>
+                                    <div className="truncate">{booking.sport}</div>
+                                    <div>
+                                      {format(booking.start, "hh:mm a")} - {format(booking.end, "hh:mm a")}
+                                    </div>
+                                  </motion.div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </React.Fragment>
+                    ));
+                  })()}
+                </div>
+              </div>
+            )}
+
+          </CardContent>
+        </Card>
+
+        <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>
+          <DialogContent className="rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>Booking Details</DialogTitle>
+            </DialogHeader>
+
+            {selectedBooking && (
+              <div className="space-y-3 text-sm text-slate-700">
+                <div><strong>User:</strong> {selectedBooking.userName}</div>
+                <div><strong>Sport:</strong> {selectedBooking.sport}</div>
+                <div>
+                  <strong>Time:</strong>{" "}
+                  {format(selectedBooking.start, "hh:mm a")} - {format(selectedBooking.end, "hh:mm a")}
+                </div>
+                <div>
+                  <strong>Date:</strong> {format(selectedBooking.date, "dd MMM yyyy")}
+                </div>
+                <div><strong>Court:</strong> {selectedBooking.court}</div>
+
+                <div className="pt-2">
+                  <Button variant="destructive" onClick={cancelSelectedBooking} disabled={cancelLoading}>
+                    {cancelLoading ? "Cancelling..." : "Cancel Booking"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 }
