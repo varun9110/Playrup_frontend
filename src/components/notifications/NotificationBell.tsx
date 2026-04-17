@@ -21,10 +21,42 @@ type NotificationItem = {
   createdAt: string;
 };
 
+const ISO_UTC_DATE_TIME_REGEX = /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z\b/g;
+
 const formatDateTime = (value: string) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
+  return date.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+};
+
+const formatNotificationBody = (body: string) => {
+  if (!body) return body;
+  return body.replace(ISO_UTC_DATE_TIME_REGEX, (match) => formatDateTime(match));
+};
+
+const formatTimeOnly = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+};
+
+const formatNotificationBodyByTemplate = (notification: NotificationItem) => {
+  if (!notification.body) return notification.body;
+
+  if (notification.templateKey === 'activity.joinRequest.sent.forHost') {
+    return notification.body.replace(ISO_UTC_DATE_TIME_REGEX, (match) => formatTimeOnly(match));
+  }
+
+  return formatNotificationBody(notification.body);
 };
 
 interface NotificationBellProps {
@@ -166,7 +198,7 @@ export default function NotificationBell({ inline = false }: NotificationBellPro
                       <p className="text-sm font-semibold">{notification.title}</p>
                       {!isRead && <Badge variant="default">New</Badge>}
                     </div>
-                    <p className="mt-1 text-sm text-muted-foreground">{notification.body}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{formatNotificationBodyByTemplate(notification)}</p>
                     <p className="mt-2 text-xs text-muted-foreground">
                       {formatDateTime(notification.createdAt)}
                     </p>
