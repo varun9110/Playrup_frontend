@@ -3,8 +3,9 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, Mail, ShieldCheck, Star, User, Wallet } from 'lucide-react';
+import { Mail, Phone, ShieldCheck, Star, User, Wallet } from 'lucide-react';
 import { capitalizeWords } from '@/lib/utils';
+import { Navbar } from '@/components/layout';
 
 type FeedbackProfile = {
     noShowCount: number;
@@ -55,10 +56,16 @@ const scoreLabel = (value: number) => {
 
 export default function UserProfile() {
     const navigate = useNavigate();
-    const user = JSON.parse(localStorage.getItem('user'));
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
 
     const [loading, setLoading] = useState(true);
     const [profile, setProfile] = useState<UserSummary | null>(null);
+
+    const handleLogout = () => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        navigate('/');
+    };
 
     if (!user) {
         localStorage.removeItem('token');
@@ -87,9 +94,26 @@ export default function UserProfile() {
     const feedbackProfile = profile?.feedbackProfile;
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-primary/5 to-accent/5 p-6">
+        <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
+            <Navbar onLogout={handleLogout} />
 
-            <div className="max-w-xl mx-auto">
+            <div className="container mx-auto px-4 py-8 md:py-12 max-w-7xl">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 mb-8">
+                    <div>
+                        <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-2">My Profile</h1>
+                        <p className="text-slate-600 text-lg">View your personal details and player feedback summary</p>
+                    </div>
+                    <div className="flex gap-3 flex-wrap">
+                        <Button className="rounded-lg h-11" onClick={() => navigate('/activity-requests')}>
+                            Activity Requests
+                        </Button>
+                        <Button variant="outline" className="rounded-lg h-11" onClick={() => navigate('/dashboard')}>
+                            Back to Dashboard
+                        </Button>
+                    </div>
+                </div>
+
+                <div className="max-w-xl mx-auto w-full">
                 <Card>
                     <CardHeader>
                         <CardTitle className="text-2xl">My Profile</CardTitle>
@@ -115,14 +139,30 @@ export default function UserProfile() {
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-4">
-                            <Calendar className="h-6 w-6 text-primary" />
-                            <div>
-                                <p className="text-sm text-muted-foreground">Joined</p>
-                                <p className="font-medium">
-                                    {loading || !profile?.joinedOn ? 'Loading...' : new Date(profile.joinedOn).toLocaleDateString()}
-                                </p>
-                            </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <Card className="bg-muted/40 shadow-none">
+                                <CardContent className="p-4 space-y-2">
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                        <Phone className="h-4 w-4" />
+                                        Phone
+                                    </div>
+                                    <p className="font-semibold text-slate-900 break-all">
+                                        {loading ? 'Loading...' : profile?.phone || 'Not provided'}
+                                    </p>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="bg-muted/40 shadow-none">
+                                <CardContent className="p-4 space-y-2">
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                        <Star className="h-4 w-4" />
+                                        Karma Points
+                                    </div>
+                                    <p className="font-semibold text-slate-900">
+                                        {loading ? 'Loading...' : profile?.karmaPoints ?? 0}
+                                    </p>
+                                </CardContent>
+                            </Card>
                         </div>
 
                         <div className="grid gap-4 md:grid-cols-2">
@@ -211,15 +251,9 @@ export default function UserProfile() {
                             </CardContent>
                         </Card>
 
-                        <Button
-                            className="w-full mt-4"
-                            onClick={() => navigate('/dashboard')}
-                        >
-                            Back to Dashboard
-                        </Button>
-
                     </CardContent>
                 </Card>
+            </div>
             </div>
         </div>
     );
