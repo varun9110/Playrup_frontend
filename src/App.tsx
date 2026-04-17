@@ -73,23 +73,6 @@ const App = () => (
           <Route path="/admin/onboard" element={<PrivateRoute requiredRole="superadmin"><AdminOnboardAcademy /></PrivateRoute>} />
           <Route path="/admin/notifications" element={<PrivateRoute requiredRole="superadmin"><AdminNotifications /></PrivateRoute>} />
 
-
-
-
-          {/* PlayC Routes */}
-          {/* <Route path="/playc/register" element={<PlayCRegister onRegistered={() => { }} />} />
-          <Route path="/playc/login" element={<PlayCLogin />} />
-          <Route path="/playc/verify-otp" element={<PlayCVerifyOtp email="" onVerified={() => { }} />} /> */}
-          {/* <Route path="/playc/dashboard" element={<PlayCDashboard />} /> */}
-          {/* <Route path="/playc/book" element={<BookCourt />} /> */}
-          {/* <Route path="/playc/my-bookings" element={<UserBookings />} /> */}
-          {/* <Route path="/playc/host-activity" element={<HostActivity />} /> */}
-          {/* <Route path="/playc/activities" element={<AllActivities />} /> */}
-          {/* <Route path="/playc/my-hosted" element={<MyHostedActivities />} /> */}
-          {/* <Route path="/playc/my-requests" element={<MyRequests />} /> */}
-          {/* <Route path="/playc/admin/bookings" element={<AdminBookings />} /> */}
-
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
