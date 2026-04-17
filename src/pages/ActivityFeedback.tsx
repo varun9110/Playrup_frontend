@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CircleAlert, Loader2 } from 'lucide-react';
+import { CircleAlert, Loader2 } from 'lucide-react';
+import { Navbar } from '@/components/layout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -210,9 +211,16 @@ export default function ActivityFeedback() {
   const localStart = activity ? utcDateTimeToLocalParts(activity.date, activity.fromTime) : null;
   const localEnd = activity ? utcDateTimeToLocalParts(activity.date, activity.toTime) : null;
 
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/');
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-accent/5 p-6">
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
+        <Navbar onLogout={handleLogout} />
         <div className="mx-auto max-w-5xl flex items-center justify-center py-24 text-muted-foreground gap-2">
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading player rating screen...
@@ -222,25 +230,30 @@ export default function ActivityFeedback() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-accent/5 p-6">
-      <div className="mx-auto max-w-5xl space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
+      <Navbar onLogout={handleLogout} />
+
+      <div className="container mx-auto px-4 py-8 md:py-12 max-w-5xl space-y-6">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
           <div>
-            <Button variant="ghost" className="mb-2 pl-0" onClick={() => navigate('/my-hosted')}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Past Activities
-            </Button>
-            <h1 className="text-3xl font-bold">Rate Players</h1>
-            <p className="text-sm text-muted-foreground mt-1">
+            <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-2">Rate Players</h1>
+            <p className="text-slate-600 text-lg">
               Submit anonymous ratings for everyone who played in this completed activity.
             </p>
           </div>
-
-          {activity?.feedbackStatus && (
-            <Badge variant="secondary" className="px-3 py-1.5 text-sm">
-              {activity.feedbackStatus.submittedCount}/{activity.feedbackStatus.totalRecipients} completed
-            </Badge>
-          )}
+          <div className="flex gap-3 flex-wrap items-center">
+            {activity?.feedbackStatus && (
+              <Badge variant="secondary" className="px-3 py-1.5 text-sm">
+                {activity.feedbackStatus.submittedCount}/{activity.feedbackStatus.totalRecipients} completed
+              </Badge>
+            )}
+            <Button className="rounded-lg h-11" onClick={() => navigate('/my-hosted')}>
+              Past Activities
+            </Button>
+            <Button variant="outline" className="rounded-lg h-11" onClick={() => navigate('/dashboard')}>
+              Back to Dashboard
+            </Button>
+          </div>
         </div>
 
         {activity && (
