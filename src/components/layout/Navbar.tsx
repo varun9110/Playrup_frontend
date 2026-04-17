@@ -52,6 +52,7 @@ export default function Navbar({ onLogout }: NavbarProps) {
   };
 
   const mainNavItems = [
+    { label: 'Dashboard', path: '/dashboard', roles: ['user'] },
     { label: 'Browse Activities', path: '/activities', roles: ['user'] },
     { label: 'My Bookings', path: '/my-bookings', roles: ['user'] },
     { label: 'Host Activity', path: '/host-activity', roles: ['user'] },
