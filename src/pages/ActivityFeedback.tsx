@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from '@/components/ui/sonner';
-import { utcDateTimeToLocalParts } from '@/lib/utils';
+import { capitalizeWords, utcDateTimeToLocalParts } from '@/lib/utils';
 
 type EncryptedValue = {
   iv: string;
@@ -241,12 +241,7 @@ export default function ActivityFeedback() {
               Submit anonymous ratings for everyone who played in this completed activity.
             </p>
           </div>
-          <div className="flex gap-3 flex-wrap items-center">
-            {activity?.feedbackStatus && (
-              <Badge variant="secondary" className="px-3 py-1.5 text-sm">
-                {activity.feedbackStatus.submittedCount}/{activity.feedbackStatus.totalRecipients} completed
-              </Badge>
-            )}
+          <div className="flex gap-3 flex-wrap items-center justify-end">
             <Button className="rounded-lg h-11" onClick={() => navigate('/my-hosted')}>
               Past Activities
             </Button>
@@ -259,7 +254,14 @@ export default function ActivityFeedback() {
         {activity && (
           <Card>
             <CardHeader>
-              <CardTitle>{activity.sport}</CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle>{capitalizeWords(activity.sport)}</CardTitle>
+                {activity.feedbackStatus && (
+                  <Badge variant="secondary" className="px-3 py-1.5 text-sm">
+                    {activity.feedbackStatus.submittedCount}/{activity.feedbackStatus.totalRecipients} completed
+                  </Badge>
+                )}
+              </div>
               <CardDescription>
                 {(localStart?.dateObj || new Date(activity.date)).toLocaleDateString(undefined, {
                   year: 'numeric',
