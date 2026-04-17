@@ -16,6 +16,13 @@ import {
   XCircle,
 } from 'lucide-react';
 import { utcDateTimeToLocalParts } from '@/lib/utils';
+import ActivityParticipantsDialog from '@/components/activities/ActivityParticipantsDialog';
+
+type EncryptedValue = {
+  iv: string;
+  content: string;
+  tag: string;
+};
 
 type ActivityData = {
   _id: string;
@@ -54,10 +61,20 @@ export default function UserActivityRequests() {
   const [incomingRequests, setIncomingRequests] = useState<RequestItem[]>([]);
   const [sentRequests, setSentRequests] = useState<RequestItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showParticipantsDialog, setShowParticipantsDialog] = useState(false);
+  const [selectedParticipantsActivity, setSelectedParticipantsActivity] = useState<ActivityData | null>(null);
 
   const storedUser = JSON.parse(localStorage.getItem('user') || 'null');
   const userEmail = storedUser?.email;
   const userId = storedUser?.userId;
+
+  const getComparableValue = (value?: EncryptedValue | string | null) => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    return value.content || '';
+  };
+
+  const currentUserId = getComparableValue(userId);
 
   const capitalizeWordsSafe = (value?: string) => {
     if (!value) return '';
@@ -158,7 +175,20 @@ export default function UserActivityRequests() {
 
 
 
-  const handleViewProfile = (_userId: string) => {};
+  const handleViewProfile = (_userId: string | EncryptedValue) => {
+    if (getComparableValue(_userId) === currentUserId) {
+      navigate('/profile');
+      return;
+    }
+
+    const userToken = encodeURIComponent(JSON.stringify(_userId));
+    navigate(`/participant-profile/${userToken}`);
+  };
+
+  const openParticipantsDialog = (activity: ActivityData) => {
+    setSelectedParticipantsActivity(activity);
+    setShowParticipantsDialog(true);
+  };
 
   const handleApprove = async (requestId: string, activityId: string, requestUserId: string) => {
     try {
@@ -337,17 +367,23 @@ export default function UserActivityRequests() {
             <div className="col-span-1 sm:col-span-2 flex items-center gap-1">
               <Users className="h-4 w-4 text-blue-600" />
               <span className="text-muted-foreground">Requested by:</span>
-              <p className="font-medium">{request.userId.name}</p>
+              <button
+                type="button"
+                className="font-medium text-blue-700 hover:text-blue-800 hover:underline"
+                onClick={() => handleViewProfile(request.userId._id)}
+              >
+                {request.userId.name}
+              </button>
             </div>
           </div>
 
           <div className="flex justify-between mt-3 flex-wrap gap-2">
             <Button
               size="sm"
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => handleViewProfile(request.userId._id)}
+              variant="outline"
+              onClick={() => openParticipantsDialog(request.activityId)}
             >
-              View Player Profile
+              View Participants
             </Button>
 
             <div className="flex gap-2">
@@ -453,6 +489,14 @@ export default function UserActivityRequests() {
           </div>
           <div className="flex justify-between mt-3 flex-wrap gap-2">
             <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => openParticipantsDialog(request.activityId)}
+              >
+                View Participants
+              </Button>
+
               {request.status === 'Pending' || request.status === 'Accepted' ? (
                 <Button
                   size="sm"
@@ -619,6 +663,17 @@ export default function UserActivityRequests() {
           </CardContent>
         </Card>
       </div>
+
+      <ActivityParticipantsDialog
+        open={showParticipantsDialog}
+        onOpenChange={setShowParticipantsDialog}
+        activityId={selectedParticipantsActivity?._id}
+        activityTitle={capitalizeWordsSafe(selectedParticipantsActivity?.sport) || 'Activity'}
+        onViewProfile={(participantId) => {
+          setShowParticipantsDialog(false);
+          handleViewProfile(participantId);
+        }}
+      />
     </div>
   );
 }

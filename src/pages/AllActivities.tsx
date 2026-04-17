@@ -48,6 +48,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from "@/hooks/use-toast";
+import ActivityParticipantsDialog from '@/components/activities/ActivityParticipantsDialog';
 
 export default function AllActivities() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -58,6 +59,8 @@ export default function AllActivities() {
 
   const [openCancel, setOpenCancel] = useState(false);
   const [activityToCancel, setActivityToCancel] = useState(null);
+  const [showParticipantsDialog, setShowParticipantsDialog] = useState(false);
+  const [selectedParticipantsActivity, setSelectedParticipantsActivity] = useState(null);
 
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -274,6 +277,23 @@ export default function AllActivities() {
   const handleEditActivity = (activity) => {
     if (!activity?._id) return;
     navigate(`/activities/edit/${activity._id}`);
+  };
+
+  const handleOpenParticipants = (activity) => {
+    setSelectedParticipantsActivity(activity);
+    setShowParticipantsDialog(true);
+  };
+
+  const handleViewProfile = (participantId) => {
+    setShowParticipantsDialog(false);
+
+    if (getComparableValue(participantId) === currentUserId) {
+      navigate('/profile');
+      return;
+    }
+
+    const userToken = encodeURIComponent(JSON.stringify(participantId));
+    navigate(`/participant-profile/${userToken}`);
   };
 
   const openCancelModal = (activity) => {
@@ -522,6 +542,15 @@ export default function AllActivities() {
                           {activity.joinedPlayers?.length || 0}/
                           {activity.maxPlayers} players
                         </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-blue-700 hover:text-blue-800"
+                          onClick={() => handleOpenParticipants(activity)}
+                        >
+                          View Participants
+                        </Button>
                       </div>
 
                       <div className="flex items-center gap-2 pt-1">
@@ -599,6 +628,14 @@ export default function AllActivities() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ActivityParticipantsDialog
+        open={showParticipantsDialog}
+        onOpenChange={setShowParticipantsDialog}
+        activityId={selectedParticipantsActivity?._id}
+        activityTitle={capitalizeWords(selectedParticipantsActivity?.sport || 'Activity')}
+        onViewProfile={handleViewProfile}
+      />
     </div>
   );
 }

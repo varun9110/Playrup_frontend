@@ -51,6 +51,7 @@ const App = () => (
           {/* User Routes */}
           <Route path="/dashboard" element={<PrivateRoute requiredRole="user"><UserDashboard /></PrivateRoute>} />
           <Route path="/profile" element={<PrivateRoute requiredRole="user"><UserProfile /></PrivateRoute>} />
+          <Route path="/participant-profile/:userToken" element={<PrivateRoute requiredRole="user"><UserProfile /></PrivateRoute>} />
           <Route path="/bookcourt" element={<BookCourt />} />
           <Route path="/my-bookings" element={<UserBookings />} />
           <Route path="/host-activity" element={<HostActivity />} />

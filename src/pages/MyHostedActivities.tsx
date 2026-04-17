@@ -42,6 +42,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { Navbar } from '@/components/layout';
+import ActivityParticipantsDialog from '@/components/activities/ActivityParticipantsDialog';
 
 type EncryptedValue = {
   iv: string;
@@ -128,6 +129,8 @@ export default function MyHostedActivities() {
   const [loading, setLoading] = useState(true);
   const [activityToCancel, setActivityToCancel] = useState<Activity | null>(null);
   const [openCancel, setOpenCancel] = useState(false);
+  const [showParticipantsDialog, setShowParticipantsDialog] = useState(false);
+  const [selectedParticipantsActivity, setSelectedParticipantsActivity] = useState<Activity | null>(null);
 
   const [upcomingFilter, setUpcomingFilter] = useState<RoleFilter>('all');
   const [pastFilter, setPastFilter] = useState<RoleFilter>('all');
@@ -342,6 +345,23 @@ export default function MyHostedActivities() {
   const openCancelModal = (activity: Activity) => {
     setActivityToCancel(activity);
     setOpenCancel(true);
+  };
+
+  const openParticipantsDialog = (activity: Activity) => {
+    setSelectedParticipantsActivity(activity);
+    setShowParticipantsDialog(true);
+  };
+
+  const handleViewParticipantProfile = (participantId: EncryptedValue | string) => {
+    setShowParticipantsDialog(false);
+
+    if (getComparableValue(participantId) === currentUserId) {
+      navigate('/profile');
+      return;
+    }
+
+    const userToken = encodeURIComponent(JSON.stringify(participantId));
+    navigate(`/participant-profile/${userToken}`);
   };
 
   const resolveMediaUrl = (url: string) => {
@@ -691,6 +711,15 @@ export default function MyHostedActivities() {
 
           {activity.status !== 'Cancelled' && (
             <div className="flex flex-col gap-2 pt-1">
+              <Button
+                variant="outline"
+                className="w-full border-blue-200 text-blue-700 hover:bg-blue-50"
+                onClick={() => openParticipantsDialog(activity)}
+              >
+                <Users className="h-4 w-4 mr-2" />
+                View Participants
+              </Button>
+
               <Button
                 variant="outline"
                 className="w-full border-blue-200 text-blue-700 hover:bg-blue-50"
@@ -1219,6 +1248,14 @@ export default function MyHostedActivities() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ActivityParticipantsDialog
+        open={showParticipantsDialog}
+        onOpenChange={setShowParticipantsDialog}
+        activityId={selectedParticipantsActivity?._id}
+        activityTitle={capitalizeWords(selectedParticipantsActivity?.sport || 'Activity')}
+        onViewProfile={handleViewParticipantProfile}
+      />
     </div>
   );
 }

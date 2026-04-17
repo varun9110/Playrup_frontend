@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Mail, Phone, ShieldCheck, Star, User, Users, Wallet, PlusCircle, TrendingUp, Target, Trash2 } from 'lucide-react';
+import { ShieldCheck, Star, User, Wallet, PlusCircle, TrendingUp, Target, Trash2 } from 'lucide-react';
 import { capitalizeWords } from '@/lib/utils';
 import { Navbar } from '@/components/layout';
 
@@ -78,6 +78,16 @@ type UserSummary = {
   sportRatings: SportRating[];
 };
 
+type EncryptedValue = {
+  iv: string;
+  content: string;
+  tag: string;
+};
+
+type UserProfileLocationState = {
+  targetUserId?: EncryptedValue | string;
+};
+
 const SELF_RATING_OPTIONS = ['Beginner', 'Amateur', 'Intermediate', 'Advanced', 'Professional'];
 
 const scoreLabel = (value: number) => {
@@ -92,13 +102,39 @@ const normalizeSport = (value: string) => value.trim().toLowerCase();
 
 export default function UserProfile() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { userToken } = useParams();
   const user = useMemo(() => JSON.parse(localStorage.getItem('user') || 'null'), []);
+
+  const routeTargetUserId = useMemo(() => {
+    if (!userToken) return null;
+
+    try {
+      return JSON.parse(decodeURIComponent(userToken));
+    } catch (error) {
+      console.error('Failed to decode participant profile token', error);
+      return null;
+    }
+  }, [userToken]);
+
+  const stateTargetUserId = (location.state as UserProfileLocationState | null)?.targetUserId;
+  const targetUserId = routeTargetUserId || stateTargetUserId;
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserSummary | null>(null);
   const [selectedSportToAdd, setSelectedSportToAdd] = useState('');
   const [addingSport, setAddingSport] = useState(false);
   const [savingSelfRatingForSport, setSavingSelfRatingForSport] = useState<string | null>(null);
+
+  const getComparableValue = (value?: EncryptedValue | string | null) => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    return value.content || '';
+  };
+
+  const isViewingAnotherUser = Boolean(
+    targetUserId && getComparableValue(targetUserId) !== getComparableValue(user?.userId)
+  );
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -112,7 +148,9 @@ export default function UserProfile() {
     }
 
     try {
-      const response = await axios.get('/api/user/profile-summary');
+      const response = isViewingAnotherUser
+        ? await axios.post('/api/user/profile-summary/view', { userId: targetUserId })
+        : await axios.get('/api/user/profile-summary');
       setProfile(response.data.user);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -121,7 +159,7 @@ export default function UserProfile() {
         setLoading(false);
       }
     }
-  }, []);
+  }, [isViewingAnotherUser, targetUserId]);
 
   useEffect(() => {
     if (!user) {
@@ -208,13 +246,26 @@ export default function UserProfile() {
       <div className="container mx-auto px-4 py-8 md:py-12 max-w-7xl">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 mb-8">
           <div>
-            <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-2">My Profile</h1>
-            <p className="text-slate-600 text-lg">View your details, play pals, and sport-by-sport performance.</p>
+            <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-2">
+              {isViewingAnotherUser ? 'Player Profile' : 'My Profile'}
+            </h1>
+            <p className="text-slate-600 text-lg">
+              {isViewingAnotherUser
+                ? 'View player details, play pals, and sport-by-sport performance.'
+                : 'View your details, play pals, and sport-by-sport performance.'}
+            </p>
           </div>
           <div className="flex gap-3 flex-wrap">
-            <Button className="rounded-lg h-11" onClick={() => navigate('/activity-requests')}>
-              Activity Requests
-            </Button>
+            {!isViewingAnotherUser && (
+              <Button className="rounded-lg h-11" onClick={() => navigate('/activity-requests')}>
+                Activity Requests
+              </Button>
+            )}
+            {isViewingAnotherUser && (
+              <Button className="rounded-lg h-11" onClick={() => navigate(-1)}>
+                Back
+              </Button>
+            )}
             <Button variant="outline" className="rounded-lg h-11" onClick={() => navigate('/dashboard')}>
               Back to Dashboard
             </Button>
@@ -225,7 +276,7 @@ export default function UserProfile() {
           <div className="xl:col-span-1 space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="text-2xl">My Profile</CardTitle>
+                <CardTitle className="text-2xl">{isViewingAnotherUser ? 'Player Profile' : 'My Profile'}</CardTitle>
               </CardHeader>
 
               <CardContent className="space-y-6">
@@ -237,24 +288,26 @@ export default function UserProfile() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4">
-                  <Mail className="h-6 w-6 text-primary" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Email</p>
-                    <p className="font-medium">{loading ? 'Loading...' : profile?.email}</p>
+                {!isViewingAnotherUser && (
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Email</p>
+                      <p className="font-medium">{loading ? 'Loading...' : profile?.email}</p>
+                    </div>
                   </div>
-                </div>
+                )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Card className="bg-muted/40 shadow-none">
-                    <CardContent className="p-4 space-y-2">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Phone className="h-4 w-4" />
-                        Phone
-                      </div>
-                      <p className="font-semibold text-slate-900 break-all">{loading ? 'Loading...' : profile?.phone || 'Not provided'}</p>
-                    </CardContent>
-                  </Card>
+                <div className={`grid grid-cols-1 ${isViewingAnotherUser ? '' : 'sm:grid-cols-2'} gap-3`}>
+                  {!isViewingAnotherUser && (
+                    <Card className="bg-muted/40 shadow-none">
+                      <CardContent className="p-4 space-y-2">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          Phone
+                        </div>
+                        <p className="font-semibold text-slate-900 break-all">{loading ? 'Loading...' : profile?.phone || 'Not provided'}</p>
+                      </CardContent>
+                    </Card>
+                  )}
 
                   <Card className="bg-muted/40 shadow-none">
                     <CardContent className="p-4 space-y-2">
@@ -269,30 +322,31 @@ export default function UserProfile() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  My PlayPals
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <p className="text-sm text-muted-foreground">Loading play pals...</p>
-                ) : profile?.playPals?.length ? (
-                  <div className="space-y-3 max-h-72 overflow-auto pr-1">
-                    {profile.playPals.map((pal) => (
-                      <div key={pal.id.content} className="rounded-lg border bg-muted/20 p-3">
-                        <p className="font-medium text-slate-900">{capitalizeWords(pal.name)}</p>
-                        <p className="text-xs text-muted-foreground break-all">{pal.email}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No play pals yet. Complete activities with new players to build this list.</p>
-                )}
-              </CardContent>
-            </Card>
+            {!isViewingAnotherUser && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    My PlayPals
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <p className="text-sm text-muted-foreground">Loading play pals...</p>
+                  ) : profile?.playPals?.length ? (
+                    <div className="space-y-3 max-h-72 overflow-auto pr-1">
+                      {profile.playPals.map((pal) => (
+                        <div key={pal.id.content} className="rounded-lg border bg-muted/20 p-3">
+                          <p className="font-medium text-slate-900">{capitalizeWords(pal.name)}</p>
+                          <p className="text-xs text-muted-foreground break-all">{pal.email}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No play pals yet. Complete activities with new players to build this list.</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           <div className="xl:col-span-2 space-y-6">
@@ -342,49 +396,53 @@ export default function UserProfile() {
               </Card>
             </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <PlusCircle className="h-5 w-5" />
-                  Add Sports And Self Rate
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground">Pick a sport from the available list and add it to your profile.</p>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <select
-                    className="h-10 rounded-md border px-3 bg-white"
-                    value={selectedSportToAdd}
-                    onChange={(event) => setSelectedSportToAdd(event.target.value)}
-                    disabled={loading || !addableSports.length || addingSport}
-                  >
-                    {!addableSports.length && <option value="">No new sports available</option>}
-                    {addableSports.map((sport) => (
-                      <option key={sport} value={sport}>
-                        {capitalizeWords(sport)}
-                      </option>
-                    ))}
-                  </select>
-                  <Button onClick={handleAddSport} disabled={!selectedSportToAdd || addingSport || loading}>
-                    {addingSport ? 'Adding...' : 'Add Sport'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            {!isViewingAnotherUser && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    <PlusCircle className="h-5 w-5" />
+                    Add Sports And Self Rate
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-muted-foreground">Pick a sport from the available list and add it to your profile.</p>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <select
+                      className="h-10 rounded-md border px-3 bg-white"
+                      value={selectedSportToAdd}
+                      onChange={(event) => setSelectedSportToAdd(event.target.value)}
+                      disabled={loading || !addableSports.length || addingSport}
+                    >
+                      {!addableSports.length && <option value="">No new sports available</option>}
+                      {addableSports.map((sport) => (
+                        <option key={sport} value={sport}>
+                          {capitalizeWords(sport)}
+                        </option>
+                      ))}
+                    </select>
+                    <Button onClick={handleAddSport} disabled={!selectedSportToAdd || addingSport || loading}>
+                      {addingSport ? 'Adding...' : 'Add Sport'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             <div className="space-y-4">
               {(profile?.sportRatings || []).map((sport) => (
                 <Card key={sport.sportName}>
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <CardTitle className="text-lg">{capitalizeWords(sport.sportName)}</CardTitle>
-                    <button
-                      onClick={() => handleDeleteSport(sport.sportName)}
-                      disabled={deletingSport === sport.sportName}
-                      className="ml-2 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
-                      title="Remove sport"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {!isViewingAnotherUser && (
+                      <button
+                        onClick={() => handleDeleteSport(sport.sportName)}
+                        disabled={deletingSport === sport.sportName}
+                        className="ml-2 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
+                        title="Remove sport"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -392,24 +450,30 @@ export default function UserProfile() {
                         <CardContent className="p-3 space-y-2">
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Target className="h-4 w-4" />
-                            Your self rating
+                            {isViewingAnotherUser ? 'Self rating' : 'Your self rating'}
                           </div>
-                          <select
-                            className="h-9 rounded-md border px-2 bg-white w-full"
-                            value={sport.selfRating.label === 'Unrated' ? '' : sport.selfRating.label}
-                            onChange={(event) => handleSelfRatingChange(sport.sportName, event.target.value)}
-                            disabled={savingSelfRatingForSport === sport.sportName}
-                          >
-                            <option value="" disabled>
-                              Select level
-                            </option>
-                            {SELF_RATING_OPTIONS.map((option) => (
-                              <option key={option} value={option}>
-                                {option}
-                              </option>
-                            ))}
-                          </select>
-                          <p className="text-xs text-muted-foreground">{savingSelfRatingForSport === sport.sportName ? 'Saving rating...' : `Current: ${sport.selfRating.label}`}</p>
+                          {!isViewingAnotherUser ? (
+                            <>
+                              <select
+                                className="h-9 rounded-md border px-2 bg-white w-full"
+                                value={sport.selfRating.label === 'Unrated' ? '' : sport.selfRating.label}
+                                onChange={(event) => handleSelfRatingChange(sport.sportName, event.target.value)}
+                                disabled={savingSelfRatingForSport === sport.sportName}
+                              >
+                                <option value="" disabled>
+                                  Select level
+                                </option>
+                                {SELF_RATING_OPTIONS.map((option) => (
+                                  <option key={option} value={option}>
+                                    {option}
+                                  </option>
+                                ))}
+                              </select>
+                              <p className="text-xs text-muted-foreground">{savingSelfRatingForSport === sport.sportName ? 'Saving rating...' : `Current: ${sport.selfRating.label}`}</p>
+                            </>
+                          ) : (
+                            <p className="text-sm font-medium text-slate-900">{sport.selfRating.label}</p>
+                          )}
                         </CardContent>
                       </Card>
 
@@ -463,7 +527,11 @@ export default function UserProfile() {
               {!loading && !(profile?.sportRatings || []).length && (
                 <Card>
                   <CardContent className="p-4">
-                    <p className="text-sm text-muted-foreground">No sports in your profile yet. Add one above and set your self rating.</p>
+                    <p className="text-sm text-muted-foreground">
+                      {isViewingAnotherUser
+                        ? 'No sports added in this profile yet.'
+                        : 'No sports in your profile yet. Add one above and set your self rating.'}
+                    </p>
                   </CardContent>
                 </Card>
               )}
