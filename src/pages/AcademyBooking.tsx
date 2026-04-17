@@ -14,7 +14,6 @@ import { capitalizeWords, utcDateTimeToLocalParts } from '@/lib/utils';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -38,6 +37,8 @@ interface Booking {
   start: Date;
   end: Date;
   userName: string;
+  userEmail: string;
+  userPhone: string;
   sport: string;
 }
 
@@ -152,6 +153,8 @@ export default function AcademyBooking() {
           start: localStart?.dateObj ?? new Date(`${b.date}T${b.startTime}:00Z`),
           end: localEnd?.dateObj ?? new Date(`${b.date}T${b.endTime}:00Z`),
           userName: b.userId?.name || b.userEmail,
+          userEmail: b.userId?.email || b.userEmail || "-",
+          userPhone: b.userId?.phone || b.userPhone || "-",
           sport: b.sport,
         };
       });
@@ -242,7 +245,7 @@ export default function AcademyBooking() {
   const bookingsForDay = bookings
     .filter((b) => isSameDay(b.date, selectedDate))
     .filter((b) => (selectedSport ? b.sport === selectedSport : true));
-  const selectedAcademyName = academies.find((academy) => academy._id === selectedAcademy)?.name || "-";
+  const selectedAcademyName = academies.find((academy) => academy._id === selectedAcademy)?.name;
   const activeCourtsCount = new Set(bookingsForDay.map((booking) => booking.court)).size;
 
   return (
@@ -330,7 +333,7 @@ export default function AcademyBooking() {
                 <CardDescription className="text-slate-500 mt-1">Select academy, sport and date to inspect all reservations.</CardDescription>
               </div>
               <Badge variant="outline" className="w-fit border-slate-300 text-slate-700">
-                {selectedAcademyName}
+                {selectedAcademyName ? capitalizeWords(selectedAcademyName) : "-"}
               </Badge>
             </div>
 
@@ -382,14 +385,30 @@ export default function AcademyBooking() {
                   <ArrowLeft className="h-4 w-4 mr-1" /> Prev
                 </Button>
 
-                <Input
-                  ref={dateInputRef}
-                  type="date"
-                  value={format(selectedDate, "yyyy-MM-dd")}
-                  onChange={(e) => handleDateInputChange(e.target.value)}
+                <div
+                  className="relative h-10 min-w-[170px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors"
+                  role="button"
+                  tabIndex={0}
                   onClick={openDatePicker}
-                  className="h-10 min-w-[170px] cursor-pointer text-center [text-align-last:center]"
-                />
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      openDatePicker();
+                    }
+                  }}
+                >
+                  <span className="absolute inset-0 flex items-center justify-center text-center text-slate-800 pointer-events-none">
+                    {format(selectedDate, "yyyy-MM-dd")}
+                  </span>
+                  <input
+                    ref={dateInputRef}
+                    type="date"
+                    value={format(selectedDate, "yyyy-MM-dd")}
+                    onChange={(e) => handleDateInputChange(e.target.value)}
+                    aria-label="Select date"
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                  />
+                </div>
 
                 <Button variant="outline" onClick={() => setSelectedDate(addDays(selectedDate, 1))} className="h-10">
                   Next <ArrowRight className="h-4 w-4 ml-1" />
@@ -474,7 +493,7 @@ export default function AcademyBooking() {
                                   >
                                     <div className="font-semibold text-[11px] leading-tight truncate">{booking.userName}</div>
                                     {!isCompactCard && (
-                                      <div className="text-[11px] text-slate-700 truncate">{booking.sport}</div>
+                                      <div className="text-[11px] text-slate-700 truncate">{capitalizeWords(booking.sport)}</div>
                                     )}
                                     <div className="text-[10px] leading-tight mt-0.5 whitespace-nowrap">
                                       {format(booking.start, "hh:mm a")} - {format(booking.end, "hh:mm a")}
@@ -504,7 +523,9 @@ export default function AcademyBooking() {
             {selectedBooking && (
               <div className="space-y-3 text-sm text-slate-700">
                 <div><strong>User:</strong> {selectedBooking.userName}</div>
-                <div><strong>Sport:</strong> {selectedBooking.sport}</div>
+                <div><strong>Email:</strong> {selectedBooking.userEmail}</div>
+                <div><strong>Phone:</strong> {selectedBooking.userPhone}</div>
+                <div><strong>Sport:</strong> {capitalizeWords(selectedBooking.sport)}</div>
                 <div>
                   <strong>Time:</strong>{" "}
                   {format(selectedBooking.start, "hh:mm a")} - {format(selectedBooking.end, "hh:mm a")}
