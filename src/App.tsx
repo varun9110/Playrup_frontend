@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 
 /** Common pages import */
 import Index from "./pages/Index";
@@ -36,45 +36,57 @@ import AcademyBooking from "./pages/AcademyBooking";
 
 const queryClient = new QueryClient();
 
+const AppRoutes = () => {
+  const location = useLocation();
+  const hideNotificationBellRoutes = ["/", "/signup", "/verify"];
+  const shouldShowNotificationBell = !hideNotificationBellRoutes.includes(location.pathname);
+
+  return (
+    <>
+      {shouldShowNotificationBell && <NotificationBell />}
+      <Routes>
+        <Route path="/" element={<Index />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/verify" element={<Verify />} />
+
+        {/* User Routes */}
+        <Route path="/dashboard" element={<PrivateRoute requiredRole="user"><UserDashboard /></PrivateRoute>} />
+        <Route path="/profile" element={<PrivateRoute requiredRole="user"><UserProfile /></PrivateRoute>} />
+        <Route path="/participant-profile/:userToken" element={<PrivateRoute requiredRole="user"><UserProfile /></PrivateRoute>} />
+        <Route path="/bookcourt" element={<BookCourt />} />
+        <Route path="/my-bookings" element={<UserBookings />} />
+        <Route path="/host-activity" element={<HostActivity />} />
+        <Route path="/activities" element={<AllActivities />} />
+        <Route path="/activities/edit/:activityId" element={<PrivateRoute requiredRole="user"><EditActivity /></PrivateRoute>} />
+        <Route path="/my-hosted" element={<MyHostedActivities />} />
+        <Route path="/activities/:activityId/feedback" element={<PrivateRoute requiredRole="user"><ActivityFeedback /></PrivateRoute>} />
+        <Route path="/activity-requests" element={<UserActivityRequests />} />
+
+
+        {/* Academy Routes*/}
+        <Route path="/academy-dashboard" element={<PrivateRoute requiredRole="academy"><AcademyDashboard /></PrivateRoute>} />
+        <Route path="/academy-setup" element={<PrivateRoute requiredRole="academy"><AcademySetup /></PrivateRoute>} />
+        <Route path="/academy-bookings" element={<PrivateRoute requiredRole="academy"><AcademyBooking /></PrivateRoute>} />
+
+
+        {/* Super Admin Routes */}
+        <Route path="/adminlanding" element={<PrivateRoute requiredRole="superadmin"><AdminLanding /></PrivateRoute>} />
+        <Route path="/admin/onboard" element={<PrivateRoute requiredRole="superadmin"><AdminOnboardAcademy /></PrivateRoute>} />
+        <Route path="/admin/notifications" element={<PrivateRoute requiredRole="superadmin"><AdminNotifications /></PrivateRoute>} />
+
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </>
+  );
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <NotificationBell />
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/verify" element={<Verify />} />
-
-          {/* User Routes */}
-          <Route path="/dashboard" element={<PrivateRoute requiredRole="user"><UserDashboard /></PrivateRoute>} />
-          <Route path="/profile" element={<PrivateRoute requiredRole="user"><UserProfile /></PrivateRoute>} />
-          <Route path="/participant-profile/:userToken" element={<PrivateRoute requiredRole="user"><UserProfile /></PrivateRoute>} />
-          <Route path="/bookcourt" element={<BookCourt />} />
-          <Route path="/my-bookings" element={<UserBookings />} />
-          <Route path="/host-activity" element={<HostActivity />} />
-          <Route path="/activities" element={<AllActivities />} />
-          <Route path="/activities/edit/:activityId" element={<PrivateRoute requiredRole="user"><EditActivity /></PrivateRoute>} />
-          <Route path="/my-hosted" element={<MyHostedActivities />} />
-          <Route path="/activities/:activityId/feedback" element={<PrivateRoute requiredRole="user"><ActivityFeedback /></PrivateRoute>} />
-          <Route path="/activity-requests" element={<UserActivityRequests />} />
-
-
-          {/* Academy Routes*/}
-          <Route path="/academy-dashboard" element={<PrivateRoute requiredRole="academy"><AcademyDashboard /></PrivateRoute>} />
-          <Route path="/academy-setup" element={<PrivateRoute requiredRole="academy"><AcademySetup /></PrivateRoute>} />
-          <Route path="/academy-bookings" element={<PrivateRoute requiredRole="academy"><AcademyBooking /></PrivateRoute>} />
-
-
-          {/* Super Admin Routes */}
-          <Route path="/adminlanding" element={<PrivateRoute requiredRole="superadmin"><AdminLanding /></PrivateRoute>} />
-          <Route path="/admin/onboard" element={<PrivateRoute requiredRole="superadmin"><AdminOnboardAcademy /></PrivateRoute>} />
-          <Route path="/admin/notifications" element={<PrivateRoute requiredRole="superadmin"><AdminNotifications /></PrivateRoute>} />
-
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AppRoutes />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
