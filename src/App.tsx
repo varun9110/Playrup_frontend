@@ -2,7 +2,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { useEffect } from "react";
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 
 /** Common pages import */
 import Index from "./pages/Index";
@@ -38,8 +39,60 @@ const queryClient = new QueryClient();
 
 const AppRoutes = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const authRoutes = ["/", "/signup", "/verify"];
+  const isAuthRoute = authRoutes.includes(location.pathname);
   const hideNotificationBellRoutes = ["/", "/signup", "/verify"];
   const shouldShowNotificationBell = !hideNotificationBellRoutes.includes(location.pathname);
+
+  const getStoredUser = () => {
+    try {
+      const userData = localStorage.getItem("user");
+      return userData ? JSON.parse(userData) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const getHomeRouteByRole = (role?: string) => {
+    if (role === "superadmin") return "/adminlanding";
+    if (role === "academy") return "/academy-dashboard";
+    return "/dashboard";
+  };
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const user = getStoredUser();
+
+    if (isAuthRoute && token && user) {
+      navigate(getHomeRouteByRole(user.role), { replace: true });
+    }
+  }, [isAuthRoute, navigate]);
+
+  useEffect(() => {
+    const onStorageChange = (event: StorageEvent) => {
+      if (!["token", "user", null].includes(event.key)) {
+        return;
+      }
+
+      const token = localStorage.getItem("token");
+      const user = getStoredUser();
+
+      if (!token || !user) {
+        if (!authRoutes.includes(location.pathname)) {
+          navigate("/", { replace: true });
+        }
+        return;
+      }
+
+      if (authRoutes.includes(location.pathname)) {
+        navigate(getHomeRouteByRole(user.role), { replace: true });
+      }
+    };
+
+    window.addEventListener("storage", onStorageChange);
+    return () => window.removeEventListener("storage", onStorageChange);
+  }, [location.pathname, navigate]);
 
   return (
     <>
