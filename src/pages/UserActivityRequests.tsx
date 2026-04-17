@@ -14,7 +14,6 @@ import {
   Send,
   CheckCircle2,
   XCircle,
-  ArrowLeft,
 } from 'lucide-react';
 import { utcDateTimeToLocalParts } from '@/lib/utils';
 
@@ -488,20 +487,21 @@ export default function UserActivityRequests() {
       }} />
 
       <div className="container mx-auto px-4 py-8 md:py-12 max-w-7xl">
-        <div className="mb-8">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mb-4 text-slate-600 hover:text-slate-900 -ml-2"
-            onClick={() => navigate('/dashboard')}
-          >
-            <ArrowLeft className="w-4 h-4 mr-1" />
-            Back to Dashboard
-          </Button>
-          <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-2">Activity Requests</h1>
-          <p className="text-slate-600 text-lg">
-            Manage incoming join requests and track requests you have sent.
-          </p>
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 mb-8">
+          <div>
+            <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-2">Activity Requests</h1>
+            <p className="text-slate-600 text-lg">
+              Manage incoming join requests and track requests you have sent.
+            </p>
+          </div>
+          <div className="flex gap-3 flex-wrap">
+            <Button className="rounded-lg h-11" onClick={() => navigate('/activities')}>
+              Browse Activities
+            </Button>
+            <Button variant="outline" className="rounded-lg h-11" onClick={() => navigate('/dashboard')}>
+              Back to Dashboard
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

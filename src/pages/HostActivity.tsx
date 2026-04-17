@@ -36,7 +36,6 @@ import {
   Users,
   Zap,
   Trophy,
-  ArrowLeft,
   DollarSign,
   Star,
 } from "lucide-react";
@@ -440,95 +439,95 @@ export default function HostActivity() {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
       <Navbar onLogout={handleLogout} />
 
-      <div className="container mx-auto px-4 py-8 md:py-12 max-w-3xl">
-        {/* Hero */}
-        <div className="mb-8">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mb-4 text-slate-600 hover:text-slate-900 -ml-2"
-            onClick={() => navigate("/dashboard")}
-          >
-            <ArrowLeft className="w-4 h-4 mr-1" />
-            Back to Dashboard
-          </Button>
-          <h1 className="text-4xl font-bold text-slate-900 mb-2">Host an Activity</h1>
-          <p className="text-slate-600 text-lg">
-            Create a group activity — link an existing court booking or set up a standalone event
-          </p>
+      <div className="container mx-auto px-4 py-8 md:py-12 max-w-7xl">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 mb-8">
+          <div>
+            <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-2">Host an Activity</h1>
+            <p className="text-slate-600 text-lg">
+              Create a group activity and invite players in minutes
+            </p>
+          </div>
+          <div className="flex gap-3 flex-wrap">
+            <Button className="rounded-lg h-11" onClick={() => navigate('/my-hosted')}>
+              My Hosted Activities
+            </Button>
+            <Button variant="outline" className="rounded-lg h-11" onClick={() => navigate('/dashboard')}>
+              Back to Dashboard
+            </Button>
+          </div>
         </div>
 
-        {/* Step 1 — Link a Booking (optional) */}
-        <Card className="overflow-hidden mb-6">
-          <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50 border-b py-4 px-6">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <CalendarIcon className="w-4 h-4 text-blue-600" />
-              Select a Future Booking
-              <Badge className="ml-auto bg-blue-100 text-blue-700 text-xs font-medium">Optional</Badge>
-            </CardTitle>
-            <CardDescription className="mt-0.5">
-              Choose a booking to auto-fill activity venue, date and time.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 space-y-3">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1">
-                <Select
-                  key={bookingSelectRenderKey}
-                  value={selectedBookingValue}
-                  onValueChange={handleBookingSelect}
-                  disabled={!bookings.length}
+        <div className="max-w-3xl mx-auto w-full">
+          {/* Step 1 — Link a Booking (optional) */}
+          <Card className="overflow-hidden mb-6">
+            <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50 border-b py-4 px-6">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <CalendarIcon className="w-4 h-4 text-blue-600" />
+                Select a Future Booking
+                <Badge className="ml-auto bg-blue-100 text-blue-700 text-xs font-medium">Optional</Badge>
+              </CardTitle>
+              <CardDescription className="mt-0.5">
+                Choose a booking to auto-fill activity venue, date and time.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 space-y-3">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1">
+                  <Select
+                    key={bookingSelectRenderKey}
+                    value={selectedBookingValue}
+                    onValueChange={handleBookingSelect}
+                    disabled={!bookings.length}
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={bookings.length ? "Select Booking" : "No Future Bookings Available"}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {bookings.map((booking) => (
+                        <SelectItem key={booking._id} value={booking._id}>
+                          {`${safeCapitalize(booking.academyName || booking.academyId?.name || "Academy")} · ${safeCapitalize(booking.sport || "Sport")} · ${format(new Date(booking.date), "PPP")} · ${booking.startTime || "--:--"} - ${booking.endTime || "--:--"}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="sm:w-auto"
+                  onClick={clearSelectedBooking}
+                  disabled={!selectedBooking}
                 >
-                  <SelectTrigger>
-                    <SelectValue
-                      placeholder={bookings.length ? "Select Booking" : "No Future Bookings Available"}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {bookings.map((booking) => (
-                      <SelectItem key={booking._id} value={booking._id}>
-                        {`${safeCapitalize(booking.academyName || booking.academyId?.name || "Academy")} · ${safeCapitalize(booking.sport || "Sport")} · ${format(new Date(booking.date), "PPP")} · ${booking.startTime || "--:--"} - ${booking.endTime || "--:--"}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  Clear Booking
+                </Button>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="sm:w-auto"
-                onClick={clearSelectedBooking}
-                disabled={!selectedBooking}
-              >
-                Clear Booking
-              </Button>
-            </div>
 
-            {selectedBooking && (
-              <p className="text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-md px-3 py-2">
-                Form pre-filled from selected booking. Clear booking to enter details manually.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+              {selectedBooking && (
+                <p className="text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-md px-3 py-2">
+                  Form pre-filled from selected booking. Clear booking to enter details manually.
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
-        {/* Step 2 — Activity Form */}
-        <Card className="overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50 border-b py-4 px-6">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Zap className="w-4 h-4 text-blue-600" />
-              Activity Details
-            </CardTitle>
-            <CardDescription className="mt-0.5">
-              {selectedBooking
-                ? "Venue, date & time are pre-filled. Set skill level, participants & price."
-                : "Fill in all details for your activity"}
-            </CardDescription>
-          </CardHeader>
+          {/* Step 2 — Activity Form */}
+          <Card className="overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50 border-b py-4 px-6">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Zap className="w-4 h-4 text-blue-600" />
+                Activity Details
+              </CardTitle>
+              <CardDescription className="mt-0.5">
+                {selectedBooking
+                  ? "Venue, date & time are pre-filled. Set skill level, participants & price."
+                  : "Fill in all details for your activity"}
+              </CardDescription>
+            </CardHeader>
 
-          <CardContent className="p-6">
-            <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-6">
-
+            <CardContent className="p-6">
+              <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-6">
               {/* ── Venue Section ── */}
               {!selectedBooking && (
                 <div>
@@ -739,9 +738,10 @@ export default function HostActivity() {
                 <Zap className="w-4 h-4 mr-2" />
                 Create Activity
               </Button>
-            </form>
-          </CardContent>
-        </Card>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

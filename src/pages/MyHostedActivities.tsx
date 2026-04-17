@@ -553,18 +553,16 @@ export default function MyHostedActivities() {
         <button
           key={key}
           onClick={() => onChange(key)}
-          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
-            value === key
+          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border transition-colors ${value === key
               ? 'bg-blue-600 text-white border-blue-600'
               : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-700'
-          }`}
+            }`}
         >
           {icon}
           {label}
           <span
-            className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-              value === key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
-            }`}
+            className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${value === key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+              }`}
           >
             {counts[key]}
           </span>
@@ -617,8 +615,8 @@ export default function MyHostedActivities() {
                     activity.status === 'Completed'
                       ? 'secondary'
                       : activity.status === 'Cancelled'
-                      ? 'outline'
-                      : 'destructive'
+                        ? 'outline'
+                        : 'destructive'
                   }
                   className={activity.status === 'Cancelled' ? 'border-rose-200 text-rose-600 bg-rose-50' : ''}
                 >
@@ -806,19 +804,16 @@ export default function MyHostedActivities() {
               </p>
             </div>
             <div className="flex gap-3 shrink-0">
-              <Button
-                variant="outline"
-                className="border-blue-200 text-blue-700 hover:bg-blue-50"
-                onClick={() => navigate('/dashboard')}
-              >
-                Back to Dashboard
-              </Button>
+
               <Button
                 className="bg-blue-600 hover:bg-blue-700 text-white"
                 onClick={() => navigate('/host-activity')}
               >
                 <PlusCircle className="h-4 w-4 mr-2" />
                 Host New Activity
+              </Button>
+              <Button variant="outline" className="rounded-lg h-11" onClick={() => navigate('/dashboard')}>
+                Back to Dashboard
               </Button>
             </div>
           </div>
@@ -929,8 +924,8 @@ export default function MyHostedActivities() {
                       upcomingFilter === 'all'
                         ? 'No upcoming activities'
                         : upcomingFilter === 'host'
-                        ? 'No upcoming activities you are hosting'
-                        : 'No upcoming activities you are playing in'
+                          ? 'No upcoming activities you are hosting'
+                          : 'No upcoming activities you are playing in'
                     }
                     subtitle={
                       upcomingFilter !== 'participant'
@@ -1079,11 +1074,10 @@ export default function MyHostedActivities() {
                   className={`flex ${message.isOwnMessage ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[75%] rounded-2xl px-3 py-2 shadow-sm ${
-                      message.isOwnMessage
+                    className={`max-w-[75%] rounded-2xl px-3 py-2 shadow-sm ${message.isOwnMessage
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-background border'
-                    }`}
+                      }`}
                   >
                     {!message.isOwnMessage && (
                       <p className="text-xs font-semibold mb-1">{message.sender?.name}</p>
