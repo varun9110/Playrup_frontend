@@ -420,7 +420,7 @@ export default function AcademyBooking() {
                   className="grid relative bg-white min-w-[800px]"
                   style={{
                     gridTemplateColumns: `120px repeat(${courts.length}, minmax(120px, 1fr))`,
-                    gridAutoRows: "64px",
+                    gridAutoRows: "72px",
                   }}
                 >
                   <div className="border p-2 bg-slate-50" />
@@ -444,34 +444,39 @@ export default function AcademyBooking() {
                           const bookingsForCourt = bookingsForDay.filter((b) => b.court === court);
 
                           return (
-                            <div key={court} className="relative border">
+                            <div key={court} className="relative border overflow-visible">
                               {bookingsForCourt.map((booking) => {
                                 if (alreadyRenderedBooking.has(booking.id)) return null;
 
-                                const slotHeight = 64;
+                                const slotHeight = 72;
                                 const firstHour = hours[0].getHours() + hours[0].getMinutes() / 60;
                                 const bookingStartHour = booking.start.getHours() + booking.start.getMinutes() / 60;
                                 const bookingEndHour = booking.end.getHours() + booking.end.getMinutes() / 60;
+                                const durationMinutes = (booking.end.getTime() - booking.start.getTime()) / 60000;
 
                                 if (hour.getHours() + hour.getMinutes() / 60 > bookingStartHour) return null;
 
                                 alreadyRenderedBooking.add(booking.id);
 
                                 const top = (bookingStartHour - firstHour) * slotHeight;
-                                const height = (bookingEndHour - bookingStartHour) * slotHeight;
+                                const computedHeight = (bookingEndHour - bookingStartHour) * slotHeight;
+                                const height = Math.max(computedHeight, durationMinutes <= 30 ? 44 : 40);
+                                const isCompactCard = height <= 52;
 
                                 return (
                                   <motion.div
                                     key={booking.id}
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
-                                    className="absolute left-1 right-1 rounded-xl bg-blue-100 border border-blue-200 p-2 text-xs text-slate-800 shadow-sm cursor-pointer"
+                                    className="absolute z-20 left-1 right-1 rounded-xl bg-blue-100 border border-blue-300 px-2 py-1.5 text-slate-800 shadow-sm cursor-pointer overflow-hidden"
                                     style={{ top, height }}
                                     onClick={() => setSelectedBooking(booking)}
                                   >
-                                    <div className="font-medium truncate">{booking.userName}</div>
-                                    <div className="truncate">{booking.sport}</div>
-                                    <div>
+                                    <div className="font-semibold text-[11px] leading-tight truncate">{booking.userName}</div>
+                                    {!isCompactCard && (
+                                      <div className="text-[11px] text-slate-700 truncate">{booking.sport}</div>
+                                    )}
+                                    <div className="text-[10px] leading-tight mt-0.5 whitespace-nowrap">
                                       {format(booking.start, "hh:mm a")} - {format(booking.end, "hh:mm a")}
                                     </div>
                                   </motion.div>
