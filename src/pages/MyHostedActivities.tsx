@@ -65,6 +65,7 @@ type JoinedPlayer = {
 
 type Activity = {
   _id: string;
+  sourceType?: 'activity' | 'dropin';
   shareCode?: string;
   sport: string;
   city?: string;
@@ -83,9 +84,23 @@ type Activity = {
   skillLevel?: string;
   feedbackStatus?: FeedbackStatus;
   host: {
-    id: EncryptedValue;
+    id: EncryptedValue | string;
     name: string;
   };
+};
+
+type DropInUserActivity = {
+  _id: string;
+  sport: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  maxParticipants: number;
+  skillLevel?: string;
+  shareCode?: string;
+  status?: string;
+  joinedParticipants?: Array<{ _id: string; name: string }>;
+  academyId?: { _id?: string; name?: string } | null;
 };
 
 type ChatParticipant = {
@@ -258,17 +273,48 @@ export default function MyHostedActivities() {
     if (!userEmail) return;
 
     try {
-      const res = await axios.post(
-        '/api/activity/userActivities',
-        { userEmail, userId }
-      );
+      const [res, dropInRes] = await Promise.all([
+        axios.post('/api/activity/userActivities', { userEmail, userId }),
+        axios.get('/api/dropin/user-activities'),
+      ]);
 
       const now = new Date();
       const upcoming: Activity[] = [];
       const past: Activity[] = [];
       const cancelled: Activity[] = [];
 
-      res.data.activitiesWithEncryptedData.forEach((activity: Activity) => {
+      const activityItems: Activity[] = (res.data.activitiesWithEncryptedData || []).map((activity: Activity) => ({
+        ...activity,
+        sourceType: 'activity',
+      }));
+
+      const dropInItems: Activity[] = ((dropInRes.data?.dropIns || []) as DropInUserActivity[]).map((dropIn) => ({
+        _id: dropIn._id,
+        sourceType: 'dropin',
+        shareCode: dropIn.shareCode,
+        sport: dropIn.sport,
+        city: '',
+        location: dropIn.academyId?.name || 'Academy',
+        address: '',
+        date: dropIn.date,
+        fromTime: dropIn.startTime,
+        toTime: dropIn.endTime,
+        maxPlayers: dropIn.maxParticipants,
+        status: dropIn.status || 'Active',
+        joinedPlayers: (dropIn.joinedParticipants || []).map((participant) => ({
+          id: participant._id,
+          name: participant.name,
+        })),
+        skillLevel: dropIn.skillLevel,
+        host: {
+          id: dropIn.academyId?._id || 'academy',
+          name: dropIn.academyId?.name || 'Academy',
+        },
+      }));
+
+      const combinedItems = [...activityItems, ...dropInItems];
+
+      combinedItems.forEach((activity: Activity) => {
         const localStart = utcDateTimeToLocalParts(activity.date, activity.fromTime);
         const localEnd = utcDateTimeToLocalParts(activity.date, activity.toTime);
         const parsedStartDateTime = parseLocalActivityDateTime(activity.date, activity.fromTime);
@@ -368,6 +414,9 @@ export default function MyHostedActivities() {
 
   const getShareLink = (activity: Activity) => {
     if (!activity?.shareCode) return '';
+    if (activity.sourceType === 'dropin') {
+      return `${window.location.origin}/dropin/share/${activity.shareCode}`;
+    }
     return `${window.location.origin}/activity/share/${activity.shareCode}`;
   };
 
@@ -616,6 +665,7 @@ export default function MyHostedActivities() {
   const renderActivityCard = (activity: Activity, allowCancelAction = true) => {
     const isHost = isUserHost(activity);
     const isParticipant = isUserParticipant(activity);
+    const isDropIn = activity.sourceType === 'dropin';
 
     return (
       <Card key={activity._id} className="hover:shadow-md transition-all duration-200 border-slate-200 overflow-hidden">
@@ -626,6 +676,11 @@ export default function MyHostedActivities() {
                 <CardTitle className="text-lg font-semibold text-slate-800">
                   {capitalizeWords(activity.sport)}
                 </CardTitle>
+                {isDropIn && (
+                  <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px] px-2 py-0">
+                    Drop-In
+                  </Badge>
+                )}
                 {isHost && (
                   <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-[10px] px-2 py-0">
                     <Shield className="h-3 w-3 mr-1" />
@@ -732,14 +787,16 @@ export default function MyHostedActivities() {
 
           {activity.status !== 'Cancelled' && (
             <div className="flex flex-col gap-2 pt-1">
-              <Button
-                variant="outline"
-                className="w-full border-blue-200 text-blue-700 hover:bg-blue-50"
-                onClick={() => openParticipantsDialog(activity)}
-              >
-                <Users className="h-4 w-4 mr-2" />
-                View Participants
-              </Button>
+              {!isDropIn && (
+                <Button
+                  variant="outline"
+                  className="w-full border-blue-200 text-blue-700 hover:bg-blue-50"
+                  onClick={() => openParticipantsDialog(activity)}
+                >
+                  <Users className="h-4 w-4 mr-2" />
+                  View Participants
+                </Button>
+              )}
 
               <Button
                 variant="outline"
@@ -751,16 +808,18 @@ export default function MyHostedActivities() {
                 Copy Share Link
               </Button>
 
-              <Button
-                variant="outline"
-                className="w-full border-blue-200 text-blue-700 hover:bg-blue-50"
-                onClick={() => openChatRoom(activity)}
-              >
-                <MessageCircle className="h-4 w-4 mr-2" />
-                Chat with Players
-              </Button>
+              {!isDropIn && (
+                <Button
+                  variant="outline"
+                  className="w-full border-blue-200 text-blue-700 hover:bg-blue-50"
+                  onClick={() => openChatRoom(activity)}
+                >
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                  Chat with Players
+                </Button>
+              )}
 
-              {shouldShowFeedbackButton(activity) && (
+              {!isDropIn && shouldShowFeedbackButton(activity) && (
                 <Button
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                   onClick={() => navigate(`/activities/${activity._id}/feedback`)}

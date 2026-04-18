@@ -86,21 +86,60 @@ export default function AllActivities() {
   const fetchActivities = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(
-        '/api/activity/allActivities'
-      );
-      const normalized = (res.data || []).map((activity) => {
+      const [activityRes, dropInRes] = await Promise.all([
+        axios.get('/api/activity/allActivities'),
+        axios.get('/api/dropin/all'),
+      ]);
+
+      const normalizedActivities = (activityRes.data || []).map((activity) => {
         const localStart = utcDateTimeToLocalParts(activity.date, activity.fromTime);
         const localEnd = utcDateTimeToLocalParts(activity.date, activity.toTime);
         return {
           ...activity,
+          sourceType: 'activity',
           localDate: localStart?.date || activity.date,
           localDateObj: localStart?.dateObj,
           localFromTime: localStart?.time || activity.fromTime,
           localToTime: localEnd?.time || activity.toTime,
         };
       });
-      setActivities(normalized);
+
+      const normalizedDropIns = (dropInRes.data?.dropIns || []).map((dropIn) => {
+        const localDateObj = new Date(`${dropIn.date}T12:00:00`);
+        const academy = dropIn.academyId || {};
+
+        return {
+          ...dropIn,
+          sourceType: 'dropin',
+          localDate: dropIn.date,
+          localDateObj,
+          localFromTime: dropIn.startTime,
+          localToTime: dropIn.endTime,
+          fromTime: dropIn.startTime,
+          toTime: dropIn.endTime,
+          maxPlayers: dropIn.maxParticipants,
+          joinedPlayers: dropIn.joinedParticipants || [],
+          city: academy.city || '',
+          location: academy.name || '',
+          address: academy.address || '',
+          host: {
+            id: academy._id || 'academy',
+            name: academy.name || 'Academy',
+          },
+          requestedByCurrentUser: !!dropIn.hasRequested,
+          requestStatus: dropIn.hasRequested ? 'Pending' : '',
+          shareCode: dropIn.shareCode,
+          title: dropIn.title,
+        };
+      });
+
+      const merged = [...normalizedActivities, ...normalizedDropIns].sort((a, b) => {
+        const aDate = new Date(`${a.localDate || a.date}T${a.localFromTime || a.fromTime || '00:00'}`);
+        const bDate = new Date(`${b.localDate || b.date}T${b.localFromTime || b.fromTime || '00:00'}`);
+        return aDate.getTime() - bDate.getTime();
+      });
+
+      setActivities(merged);
     } catch (err) {
       console.error('Failed to fetch activities', err);
     } finally {
@@ -160,10 +199,18 @@ export default function AllActivities() {
 
   // Helper functions
   const isJoined = (activity) => {
+    if (activity.sourceType === 'dropin') {
+      if (activity.hasJoined) return true;
+      return activity.joinedPlayers?.some((player) => getComparableValue(player?._id || player) === currentUserId);
+    }
     return activity.joinedPlayers?.some((player) => getComparableValue(player) === currentUserId);
   };
 
   const isRequested = (activity) => {
+    if (activity.sourceType === 'dropin') {
+      return !!activity.hasRequested || !!activity.requestedByCurrentUser;
+    }
+
     if (activity.requestStatus === 'Pending' || activity.requestStatus === 'Accepted' || activity.requestStatus === 'Approved') {
       return true;
     }
@@ -189,8 +236,37 @@ export default function AllActivities() {
   /* ---------- ACTION HANDLERS ---------- */
 
   const handleJoinActivity = async (activityId) => {
+    const selected = activities.find((a) => a._id === activityId);
+
     if (!userEmail || !userId || !localStorage.getItem('token')) {
       navigate('/login');
+      return;
+    }
+
+    if (selected?.sourceType === 'dropin') {
+      try {
+        const res = await axios.post(`/api/dropin/${activityId}/request-join`);
+        toast({ title: res.data?.message || 'Join request sent' });
+
+        setActivities((prev) =>
+          prev.map((a) =>
+            a._id === activityId
+              ? {
+                  ...a,
+                  hasRequested: true,
+                  requestedByCurrentUser: true,
+                  requestStatus: 'Pending',
+                }
+              : a
+          )
+        );
+      } catch (err) {
+        console.error(err);
+        toast({
+          title: err.response?.data?.message || 'Failed to request to join',
+          variant: 'destructive',
+        });
+      }
       return;
     }
 
@@ -233,6 +309,9 @@ export default function AllActivities() {
 
   const getShareLink = (activity) => {
     if (!activity?.shareCode) return '';
+    if (activity.sourceType === 'dropin') {
+      return `${window.location.origin}/dropin/share/${activity.shareCode}`;
+    }
     return `${window.location.origin}/activity/share/${activity.shareCode}`;
   };
 
@@ -352,6 +431,7 @@ export default function AllActivities() {
   /* ---------- FILTERS ---------- */
   const filteredActivities = activities.filter((activity) => {
     const matchesSearch =
+      activity.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       activity.sport?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       activity.city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       activity.location?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -365,7 +445,7 @@ export default function AllActivities() {
 
   const sports = ['Basketball', 'Tennis', 'Badminton', 'Volleyball', 'Football'];
 
-  const hostedCount = activities.filter((activity) => getComparableValue(activity?.host?.id) === currentUserId).length;
+  const hostedCount = activities.filter((activity) => activity.sourceType !== 'dropin' && getComparableValue(activity?.host?.id) === currentUserId).length;
   const joinedCount = activities.filter((activity) => isJoined(activity)).length;
 
   return (
@@ -485,7 +565,8 @@ export default function AllActivities() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredActivities.map((activity) => {
-              const isHost = getComparableValue(activity?.host?.id) === currentUserId;
+              const isDropIn = activity.sourceType === 'dropin';
+              const isHost = !isDropIn && getComparableValue(activity?.host?.id) === currentUserId;
 
               return (
                 <Card key={activity._id} className="overflow-hidden border-slate-200 hover:border-slate-300 hover:shadow-md transition-all">
@@ -493,14 +574,23 @@ export default function AllActivities() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <CardTitle className="text-lg text-slate-900">
-                          {capitalizeWords(activity.sport)}
+                          {isDropIn
+                            ? (activity.title || capitalizeWords(activity.sport))
+                            : capitalizeWords(activity.sport)}
                         </CardTitle>
                         <CardDescription className="mt-1">
-                          Hosted by {capitalizeWords(activity.host?.name || 'Host')}
+                          {isDropIn
+                            ? `Drop-In by ${capitalizeWords(activity.host?.name || 'Academy')}`
+                            : `Hosted by ${capitalizeWords(activity.host?.name || 'Host')}`}
                         </CardDescription>
                       </div>
 
                       <div className="flex items-center gap-2">
+                        {isDropIn && (
+                          <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+                            Drop-In
+                          </Badge>
+                        )}
                         <Badge variant="outline" className="border-slate-300 text-slate-700">
                           {capitalizeWords(activity.city)}
                         </Badge>
@@ -567,15 +657,17 @@ export default function AllActivities() {
                           {activity.joinedPlayers?.length || 0}/
                           {activity.maxPlayers} players
                         </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2 text-blue-700 hover:text-blue-800"
-                          onClick={() => handleOpenParticipants(activity)}
-                        >
-                          View Participants
-                        </Button>
+                        {!isDropIn && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-blue-700 hover:text-blue-800"
+                            onClick={() => handleOpenParticipants(activity)}
+                          >
+                            View Participants
+                          </Button>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2 pt-1">
@@ -602,8 +694,18 @@ export default function AllActivities() {
                       <Button
                         size="sm"
                         className="w-full"
-                        variant={isRequested(activity) ? 'destructive' : 'default'}
-                        onClick={() => (isRequested(activity) ? handleWithdrawRequest(activity) : handleJoinActivity(activity._id))}
+                        variant={isRequested(activity) && !isDropIn ? 'destructive' : 'default'}
+                        onClick={() => {
+                          if (isDropIn) {
+                            if (!isRequested(activity)) handleJoinActivity(activity._id);
+                            return;
+                          }
+                          if (isRequested(activity)) {
+                            handleWithdrawRequest(activity);
+                            return;
+                          }
+                          handleJoinActivity(activity._id);
+                        }}
                         disabled={isJoined(activity) || withdrawingActivityIds.includes(activity._id)}
                       >
                         {withdrawingActivityIds.includes(activity._id)
@@ -611,7 +713,7 @@ export default function AllActivities() {
                           : isJoined(activity)
                           ? 'Joined'
                           : isRequested(activity)
-                            ? 'Withdraw'
+                            ? (isDropIn ? 'Request Sent' : 'Withdraw')
                             : 'Join Activity'}
                       </Button>
 

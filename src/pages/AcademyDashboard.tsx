@@ -298,9 +298,9 @@ export default function AcademyDashboard() {
             {[
               { label: 'Academy Setup', path: '/academy-setup', icon: '⚙️' },
               { label: 'Bookings View', path: '/academy-bookings', icon: '📅' },
+              { label: 'Drop-In Sessions', path: '/academy-dropin', icon: '🎯' },
               { label: 'Manage Sports', path: '/academy-setup', icon: '🏟️' },
               { label: 'Court Schedule', path: '/academy-bookings', icon: '🗓️' },
-              { label: 'Dashboard', path: '/academy-dashboard', icon: '📊' },
               { label: 'Logout', path: '/', icon: '🚪' },
             ].map((action) => (
               <button

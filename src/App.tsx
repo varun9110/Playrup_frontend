@@ -36,6 +36,8 @@ import NotificationBell from "./components/notifications/NotificationBell";
 import AcademySetup from "./pages/AcademySetup";
 import AcademyDashboard from "./pages/AcademyDashboard";
 import AcademyBooking from "./pages/AcademyBooking";
+import AcademyDropIn from "./pages/AcademyDropIn";
+import PublicDropInShare from "./pages/PublicDropInShare";
 
 const queryClient = new QueryClient();
 
@@ -45,7 +47,8 @@ const AppRoutes = () => {
   const authRoutes = ["/", "/login", "/signup", "/verify"];
   const isPublicRoute =
     location.pathname.startsWith('/activity/share/') ||
-    location.pathname.startsWith('/public/profile/');
+    location.pathname.startsWith('/public/profile/') ||
+    location.pathname.startsWith('/dropin/share/');
   const isAuthRoute = authRoutes.includes(location.pathname);
   const hideNotificationBellRoutes = ["/", "/login", "/signup", "/verify"];
   const shouldShowNotificationBell = !hideNotificationBellRoutes.includes(location.pathname) && !isPublicRoute;
@@ -113,6 +116,7 @@ const AppRoutes = () => {
         <Route path="/verify" element={<Verify />} />
         <Route path="/activity/share/:shareCode" element={<PublicActivityShare />} />
         <Route path="/public/profile/:userToken" element={<PublicParticipantProfile />} />
+        <Route path="/dropin/share/:shareCode" element={<PublicDropInShare />} />
 
         {/* User Routes */}
         <Route path="/dashboard" element={<PrivateRoute requiredRole="user"><UserDashboard /></PrivateRoute>} />
@@ -132,6 +136,8 @@ const AppRoutes = () => {
         <Route path="/academy-dashboard" element={<PrivateRoute requiredRole="academy"><AcademyDashboard /></PrivateRoute>} />
         <Route path="/academy-setup" element={<PrivateRoute requiredRole="academy"><AcademySetup /></PrivateRoute>} />
         <Route path="/academy-bookings" element={<PrivateRoute requiredRole="academy"><AcademyBooking /></PrivateRoute>} />
+        <Route path="/academy-booking" element={<PrivateRoute requiredRole="academy"><AcademyBooking /></PrivateRoute>} />
+        <Route path="/academy-dropin" element={<PrivateRoute requiredRole="academy"><AcademyDropIn /></PrivateRoute>} />
 
 
         {/* Super Admin Routes */}
