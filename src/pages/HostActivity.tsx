@@ -294,7 +294,7 @@ export default function HostActivity() {
 
     axios
       .get("/api/academy/getCourts", {
-        params: { email: resolvedAcademy.email, sport: selectedSport },
+        params: { academyId: resolvedAcademy._id, sport: selectedSport },
       })
       .then((res) => {
         if (res.data?.success) {

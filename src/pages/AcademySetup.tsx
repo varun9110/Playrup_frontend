@@ -38,8 +38,16 @@ const toDisplaySportName = (sport) => {
 
 export default function AcademySetup() {
   const navigate = useNavigate();
-  const email = JSON.parse(localStorage.getItem("user"))?.email;
-  const userId = JSON.parse(localStorage.getItem("user"))?.userId;
+  const storedUser = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "null") || {};
+    } catch {
+      return {};
+    }
+  }, []);
+  const userId = storedUser?.userId;
+  const [academies, setAcademies] = useState([]);
+  const [selectedAcademyId, setSelectedAcademyId] = useState("");
   const [selectedSports, setSelectedSports] = useState([]);
   const [sportsConfig, setSportsConfig] = useState({});
   const [activeSportTab, setActiveSportTab] = useState("");
@@ -65,46 +73,71 @@ export default function AcademySetup() {
     return slots;
   };
 
-  // Fetch academy details on component mount
+  useEffect(() => {
+    const fetchOwnerAcademies = async () => {
+      try {
+        const res = await axios.post("/api/academy/user-academies", { userId });
+        const academyList = res.data?.data || [];
+        setAcademies(academyList);
+        setSelectedAcademyId((prev) => {
+          if (!academyList.length) return "";
+          if (prev && academyList.some((academy) => String(academy._id) === prev)) {
+            return prev;
+          }
+          return String(academyList[0]._id);
+        });
+      } catch (error) {
+        console.error("Error fetching owner academies:", error);
+      }
+    };
+
+    if (userId) {
+      void fetchOwnerAcademies();
+    }
+  }, [userId]);
+
   useEffect(() => {
     const fetchAcademyDetails = async () => {
       try {
         const res = await axios.post("/api/academy/getDetails", {
-          email,
-          userId,
+          academyId: selectedAcademyId,
         });
-        const data = res.data.academy;
+        const data = res.data?.academy;
+        const sportsNames = [];
+        const config = {};
+        const seenSports = new Set();
 
-        if (data && data.sports) {
-          const sportsNames = [];
-          const config = {};
-          const seenSports = new Set();
+        (data?.sports || []).forEach((sport) => {
+          const displaySportName = toDisplaySportName(sport.sportName);
+          const normalizedSportName = normalizeSportKey(displaySportName);
+          if (seenSports.has(normalizedSportName)) return;
 
-          data.sports.forEach((sport) => {
-            const displaySportName = toDisplaySportName(sport.sportName);
-            const normalizedSportName = normalizeSportKey(displaySportName);
-            if (seenSports.has(normalizedSportName)) return;
+          seenSports.add(normalizedSportName);
+          sportsNames.push(displaySportName);
 
-            seenSports.add(normalizedSportName);
-            sportsNames.push(displaySportName);
+          config[displaySportName] = {
+            numberOfCourts: sport.numberOfCourts,
+            startTime: sport.startTime,
+            endTime: sport.endTime,
+            pricing: sport.pricing,
+          };
+        });
 
-            config[displaySportName] = {
-              numberOfCourts: sport.numberOfCourts,
-              startTime: sport.startTime,
-              endTime: sport.endTime,
-              pricing: sport.pricing,
-            };
-          });
-          setSelectedSports(sportsNames);
-          setSportsConfig(config);
-        }
+        setSelectedSports(sportsNames);
+        setSportsConfig(config);
+        setActiveSportTab(sportsNames[0] || "");
       } catch (error) {
         console.error("Error fetching academy details:", error);
+        setSelectedSports([]);
+        setSportsConfig({});
+        setActiveSportTab("");
       }
     };
 
-    if (email) fetchAcademyDetails();
-  }, []);
+    if (selectedAcademyId) {
+      void fetchAcademyDetails();
+    }
+  }, [selectedAcademyId]);
 
   const handleAddSport = (sport) => {
     if (!isSportSelected(sport)) {
@@ -220,8 +253,7 @@ export default function AcademySetup() {
     try {
       setSaving(true);
       await axios.post("/api/academy/configure", {
-        email,
-        userId,
+        academyId: selectedAcademyId,
         sports,
       });
       toast({
@@ -277,6 +309,21 @@ export default function AcademySetup() {
               </p>
             </div>
           </div>
+
+          {academies.length > 0 && (
+            <div className="mt-6 rounded-lg border border-slate-200 bg-white p-4">
+              <p className="mb-2 text-sm font-medium text-slate-700">Select Academy</p>
+              <Tabs value={selectedAcademyId} onValueChange={setSelectedAcademyId}>
+                <TabsList className="h-auto flex-wrap justify-start gap-1 bg-slate-100 p-1">
+                  {academies.map((academy) => (
+                    <TabsTrigger key={academy._id} value={academy._id}>
+                      {capitalizeWords(academy.name)}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
@@ -525,7 +572,7 @@ export default function AcademySetup() {
                   </Card>
                 </div>
 
-                {selectedSports.length > 0 && (
+                {selectedSports.length > 0 && selectedAcademyId && (
                   <Button className="w-full h-11" onClick={handleSubmit} disabled={saving}>
                     {saving ? 'Saving...' : 'Submit Academy Details'}
                   </Button>

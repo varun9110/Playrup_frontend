@@ -1,9 +1,10 @@
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import LoginPage from './LoginPage';
 
 const Index = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleEmailLogin = async (data: { email: string; phone: string; password: string }) => {
     try {
@@ -13,6 +14,12 @@ const Index = () => {
 
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(userData));
+
+      const redirectTo = location.state?.redirectTo;
+      if (typeof redirectTo === 'string' && redirectTo.startsWith('/')) {
+        navigate(redirectTo);
+        return;
+      }
 
       if (userData.role === 'superadmin') {
         navigate('/adminlanding');

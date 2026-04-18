@@ -273,7 +273,7 @@ export default function EditActivity() {
   useEffect(() => {
     if (!selectedAcademy || !selectedSport) return;
     axios.get("/api/academy/getCourts", {
-      params: { email: selectedAcademy.email, sport: selectedSport }
+      params: { academyId: selectedAcademy._id, sport: selectedSport }
     }).then(res => setCourts(res.data.courts || []));
   }, [selectedAcademy, selectedSport]);
 

@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import Signup from "./pages/Signup";
 import Verify from "./pages/Verify";
 import NotFound from "./pages/NotFound";
+import AcademyOnboardingVerify from "./pages/AcademyOnboardingVerify.tsx";
 import PrivateRoute from "./pages/PrivateRoute";
 
 /** User pages import */
@@ -54,9 +55,10 @@ const AppRoutes = () => {
     location.pathname.startsWith('/public/profile/') ||
     location.pathname.startsWith('/dropin/share/') ||
     location.pathname.startsWith('/coaching/share/') ||
+    location.pathname.startsWith('/academy/onboarding/verify') ||
     location.pathname.startsWith('/venue/');
   const isAuthRoute = authRoutes.includes(location.pathname);
-  const hideNotificationBellRoutes = ["/", "/login", "/signup", "/verify"];
+  const hideNotificationBellRoutes = ["/", "/login", "/signup", "/verify", "/academy/onboarding/verify"];
   const shouldShowNotificationBell = !hideNotificationBellRoutes.includes(location.pathname) && !isPublicRoute;
 
   const getStoredUser = () => {
@@ -120,6 +122,7 @@ const AppRoutes = () => {
         <Route path="/login" element={<Index />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/verify" element={<Verify />} />
+        <Route path="/academy/onboarding/verify" element={<AcademyOnboardingVerify />} />
         <Route path="/activity/share/:shareCode" element={<PublicActivityShare />} />
         <Route path="/public/profile/:userToken" element={<PublicParticipantProfile />} />
         <Route path="/dropin/share/:shareCode" element={<PublicDropInShare />} />

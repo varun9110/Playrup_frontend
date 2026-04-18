@@ -56,14 +56,20 @@ export default function AdminOnboardAcademy() {
 
     try {
       setSubmitting(true);
-      await axios.post(
+      const response = await axios.post(
         "/api/academy/onboard-academy",
         payload
       );
 
+      if (response.data?.emailDelivery !== "sent" && response.data?.onboardingLink) {
+        console.info("Academy onboarding verification link:", response.data.onboardingLink);
+      }
+
       toast({
-        title: "Academy Created Successfully!",
-        description: "The academy has been onboarded successfully."
+        title: "Academy Onboarded",
+        description: response.data?.emailDelivery === "sent"
+          ? "Verification email has been sent to the owner."
+          : "Verification link generated. Configure SMTP to send email automatically."
       });
       setForm({
         name: "",
