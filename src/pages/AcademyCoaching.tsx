@@ -135,6 +135,20 @@ const getScheduleDescription = (program: CoachingProgram): string => {
   return `${program.firstDate} · ${program.startTime}–${program.endTime}`;
 };
 
+const toLocalDateTime = (date: string, time: string) => {
+  const [year, month, day] = String(date || '').split('-').map(Number);
+  const [hour, minute] = String(time || '').split(':').map(Number);
+  return new Date(
+    Number.isFinite(year) ? year : 1970,
+    Number.isFinite(month) ? month - 1 : 0,
+    Number.isFinite(day) ? day : 1,
+    Number.isFinite(hour) ? hour : 0,
+    Number.isFinite(minute) ? minute : 0,
+    0,
+    0
+  );
+};
+
 export default function AcademyCoaching() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -153,6 +167,7 @@ export default function AcademyCoaching() {
   const [refreshing, setRefreshing] = useState(false);
 
   const [programs, setPrograms] = useState<CoachingProgram[]>([]);
+  const [programTab, setProgramTab] = useState<'active' | 'past'>('active');
   const [selectedProgram, setSelectedProgram] = useState<CoachingProgram | null>(null);
   const [selectedCoaching, setSelectedCoaching] = useState<Coaching | null>(null);
 
@@ -569,6 +584,24 @@ export default function AcademyCoaching() {
     }
   };
 
+  const activeAndPastPrograms = useMemo(() => {
+    const now = Date.now();
+    const active: CoachingProgram[] = [];
+    const past: CoachingProgram[] = [];
+
+    programs.forEach((program) => {
+      const programEndTime = toLocalDateTime(program.lastDate, program.endTime).getTime();
+      if (programEndTime < now) {
+        past.push(program);
+      } else {
+        active.push(program);
+      }
+    });
+
+    return { active, past };
+  }, [programs]);
+
+  const visiblePrograms = programTab === 'past' ? activeAndPastPrograms.past : activeAndPastPrograms.active;
   const totalEnrolled = programs.reduce((sum, p) => sum + p.joinedCount, 0);
   const totalPending = programs.reduce((sum, p) => sum + p.pendingCount, 0);
 
@@ -598,7 +631,7 @@ export default function AcademyCoaching() {
               <div className="p-3 rounded-xl bg-amber-100"><Calendar className="h-5 w-5 text-amber-700" /></div>
               <div>
                 <p className="text-xs text-slate-500">Active Programs</p>
-                <p className="text-2xl font-bold text-slate-800">{programs.length}</p>
+                <p className="text-2xl font-bold text-slate-800">{activeAndPastPrograms.active.length}</p>
               </div>
             </CardContent>
           </Card>
@@ -682,25 +715,47 @@ export default function AcademyCoaching() {
           </CardHeader>
 
           <CardContent className="p-4 md:p-6">
-            {programs.length === 0 ? (
+            <div className="mb-4">
+              <Tabs value={programTab} onValueChange={(value) => setProgramTab(value as 'active' | 'past')}>
+                <TabsList className="h-auto bg-slate-100 p-1 gap-1 flex-wrap">
+                  <TabsTrigger value="active" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 text-slate-600">
+                    Upcoming & Ongoing ({activeAndPastPrograms.active.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="past" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 text-slate-600">
+                    Past ({activeAndPastPrograms.past.length})
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+
+            {visiblePrograms.length === 0 ? (
               <div className="text-center py-16 text-slate-500">
                 <Calendar className="h-12 w-12 mx-auto mb-4 text-slate-300" />
-                <p className="text-lg font-medium">No coaching programs yet.</p>
-                <p className="text-sm mt-1">
-                  Click{' '}
-                  <button
-                    type="button"
-                    className="font-semibold text-amber-600 hover:text-amber-700"
-                    onClick={() => setCreateOpen(true)}
-                  >
-                    New Program
-                  </button>{' '}
-                  to create one.
-                </p>
+                {programTab === 'active' ? (
+                  <>
+                    <p className="text-lg font-medium">No active coaching programs.</p>
+                    <p className="text-sm mt-1">
+                      Click{' '}
+                      <button
+                        type="button"
+                        className="font-semibold text-amber-600 hover:text-amber-700"
+                        onClick={() => setCreateOpen(true)}
+                      >
+                        New Program
+                      </button>{' '}
+                      to create one.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-lg font-medium">No past coaching programs yet.</p>
+                    <p className="text-sm mt-1">Programs will appear here once their end date and time pass.</p>
+                  </>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {programs.map((program) => (
+                {visiblePrograms.map((program) => (
                   <motion.div key={program.programKey} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                     <Card
                       className="border-amber-200 hover:shadow-md transition-shadow cursor-pointer"

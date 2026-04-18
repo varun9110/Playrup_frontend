@@ -90,6 +90,20 @@ const DAYS_OF_WEEK = [
 
 const SKILL_LEVELS = ['Beginner', 'Amateur', 'Intermediate', 'Advanced', 'Professional'];
 
+const toLocalDateTime = (date: string, time: string) => {
+  const [year, month, day] = String(date || '').split('-').map(Number);
+  const [hour, minute] = String(time || '').split(':').map(Number);
+  return new Date(
+    Number.isFinite(year) ? year : 1970,
+    Number.isFinite(month) ? month - 1 : 0,
+    Number.isFinite(day) ? day : 1,
+    Number.isFinite(hour) ? hour : 0,
+    Number.isFinite(minute) ? minute : 0,
+    0,
+    0
+  );
+};
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function AcademyDropIn() {
@@ -106,6 +120,7 @@ export default function AcademyDropIn() {
 
   // ── Schedule list view ──
   const [dropIns, setDropIns] = useState<DropIn[]>([]);
+  const [scheduleTab, setScheduleTab] = useState<'active' | 'past'>('active');
 
   // ── Create dialog ──
   const [createOpen, setCreateOpen] = useState(false);
@@ -207,6 +222,27 @@ export default function AcademyDropIn() {
         return left.displayDropIn.startTime.localeCompare(right.displayDropIn.startTime);
       });
   }, [dropIns]);
+
+  const activeAndPastSchedules = useMemo(() => {
+    const now = Date.now();
+    const active: DropInSchedule[] = [];
+    const past: DropInSchedule[] = [];
+
+    scheduleGroups.forEach((schedule) => {
+      const lastOccurrence = schedule.occurrences[schedule.occurrences.length - 1] || schedule.displayDropIn;
+      const scheduleEndTime = toLocalDateTime(lastOccurrence.date, lastOccurrence.endTime).getTime();
+
+      if (scheduleEndTime < now) {
+        past.push(schedule);
+      } else {
+        active.push(schedule);
+      }
+    });
+
+    return { active, past };
+  }, [scheduleGroups]);
+
+  const visibleSchedules = scheduleTab === 'past' ? activeAndPastSchedules.past : activeAndPastSchedules.active;
 
   // ── Fetch academies ──
   useEffect(() => {
@@ -518,25 +554,47 @@ export default function AcademyDropIn() {
           </CardHeader>
 
           <CardContent className="p-4 md:p-6">
-            {scheduleGroups.length === 0 ? (
+            <div className="mb-4">
+              <Tabs value={scheduleTab} onValueChange={(value) => setScheduleTab(value as 'active' | 'past')}>
+                <TabsList className="h-auto bg-slate-100 p-1 gap-1 flex-wrap">
+                  <TabsTrigger value="active" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 text-slate-600">
+                    Upcoming & Ongoing ({activeAndPastSchedules.active.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="past" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 text-slate-600">
+                    Past ({activeAndPastSchedules.past.length})
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+
+            {visibleSchedules.length === 0 ? (
               <div className="text-center py-16 text-slate-500">
                 <Calendar className="h-12 w-12 mx-auto mb-4 text-slate-300" />
-                <p className="text-lg font-medium">No drop-in schedules created yet.</p>
-                <p className="text-sm mt-1">
-                  Click{' '}
-                  <button
-                    type="button"
-                    className="font-semibold text-emerald-600 hover:text-emerald-700"
-                    onClick={() => setCreateOpen(true)}
-                  >
-                    New Drop-In
-                  </button>{' '}
-                  to create one.
-                </p>
+                {scheduleTab === 'active' ? (
+                  <>
+                    <p className="text-lg font-medium">No active drop-in schedules.</p>
+                    <p className="text-sm mt-1">
+                      Click{' '}
+                      <button
+                        type="button"
+                        className="font-semibold text-emerald-600 hover:text-emerald-700"
+                        onClick={() => setCreateOpen(true)}
+                      >
+                        New Drop-In
+                      </button>{' '}
+                      to create one.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-lg font-medium">No past drop-in schedules yet.</p>
+                    <p className="text-sm mt-1">Schedules will appear here once their end date and time pass.</p>
+                  </>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {scheduleGroups.map(schedule => {
+                {visibleSchedules.map(schedule => {
                   const dropIn = schedule.displayDropIn;
                   const scheduleLabel = dropIn.recurrenceType === 'none'
                     ? 'One-time'

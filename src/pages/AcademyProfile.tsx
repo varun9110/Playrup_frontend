@@ -117,6 +117,24 @@ const getEmbedMapUrl = (mapLink: string, fallbackAddress: string) => {
   return '';
 };
 
+const getMapHref = (mapLink: string, fallbackAddress: string) => {
+  const trimmed = String(mapLink || '').trim();
+
+  if (trimmed) {
+    const lower = trimmed.toLowerCase();
+    if (lower.startsWith('http://') || lower.startsWith('https://')) {
+      return trimmed;
+    }
+    if (lower.startsWith('www.')) {
+      return `https://${trimmed}`;
+    }
+    return `https://maps.google.com/maps?q=${encodeURIComponent(trimmed)}`;
+  }
+
+  const fallback = String(fallbackAddress || '').trim();
+  return fallback ? `https://maps.google.com/maps?q=${encodeURIComponent(fallback)}` : '';
+};
+
 export default function AcademyProfile() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -314,6 +332,7 @@ export default function AcademyProfile() {
   const formatDisplayValue = (value?: string) => capitalizeWords(String(value || ''));
 
   const mapEmbedUrl = getEmbedMapUrl(academy?.mapLink || '', `${academy?.address || ''} ${academy?.city || ''}`.trim());
+  const mapHref = getMapHref(academy?.mapLink || '', `${academy?.address || ''} ${academy?.city || ''}`.trim());
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
@@ -492,9 +511,9 @@ export default function AcademyProfile() {
                       Add a map link to preview your venue location.
                     </div>
                   )}
-                  {academy.mapLink && (
+                  {mapHref && (
                     <a
-                      href={academy.mapLink}
+                      href={mapHref}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 text-sm text-blue-700 mt-3"

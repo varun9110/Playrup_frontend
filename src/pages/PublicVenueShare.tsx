@@ -92,6 +92,24 @@ const getEmbedMapUrl = (mapLink: string, fallbackAddress: string) => {
   return '';
 };
 
+const getMapHref = (mapLink: string, fallbackAddress: string) => {
+  const trimmed = String(mapLink || '').trim();
+
+  if (trimmed) {
+    const lower = trimmed.toLowerCase();
+    if (lower.startsWith('http://') || lower.startsWith('https://')) {
+      return trimmed;
+    }
+    if (lower.startsWith('www.')) {
+      return `https://${trimmed}`;
+    }
+    return `https://maps.google.com/maps?q=${encodeURIComponent(trimmed)}`;
+  }
+
+  const fallback = String(fallbackAddress || '').trim();
+  return fallback ? `https://maps.google.com/maps?q=${encodeURIComponent(fallback)}` : '';
+};
+
 export default function PublicVenueShare() {
   const { shareCode } = useParams<{ shareCode: string }>();
   const location = useLocation();
@@ -105,7 +123,8 @@ export default function PublicVenueShare() {
       return null;
     }
   }, []);
-  const hasToken = Boolean(localStorage.getItem('token'));
+  const token = localStorage.getItem('token');
+  const hasUserSession = Boolean(token) && user?.role === 'user';
 
   const [loading, setLoading] = useState(true);
   const [venue, setVenue] = useState<Venue | null>(null);
@@ -121,7 +140,7 @@ export default function PublicVenueShare() {
       if (!shareCode) return;
 
       try {
-        const endpoint = hasToken ? `/api/user/venue/${shareCode}` : `/api/public/venue/${shareCode}`;
+        const endpoint = hasUserSession ? `/api/user/venue/${shareCode}` : `/api/public/venue/${shareCode}`;
         const res = await axios.get(endpoint);
         setVenue(res.data?.venue || null);
       } catch (error) {
@@ -133,7 +152,7 @@ export default function PublicVenueShare() {
     };
 
     void loadVenue();
-  }, [hasToken, shareCode]);
+  }, [hasUserSession, shareCode]);
 
   const handleCopyShareLink = async () => {
     try {
@@ -146,6 +165,10 @@ export default function PublicVenueShare() {
 
   const handleBookVenue = () => {
     if (!venue) return;
+    if (!hasUserSession) {
+      navigate('/login');
+      return;
+    }
     const today = new Date();
     const dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const fallbackSport = venue.sports?.[0]?.sportName || '';
@@ -161,7 +184,7 @@ export default function PublicVenueShare() {
   };
 
   const handleToggleFavorite = async () => {
-    if (!hasToken || !venue?.id) {
+    if (!hasUserSession || !venue?.id) {
       navigate('/login');
       return;
     }
@@ -187,29 +210,23 @@ export default function PublicVenueShare() {
   };
 
   const handleRateVenue = async (rating: number) => {
-    if (!hasToken || !venue?.id) {
+    if (!hasUserSession || !venue?.id) {
       navigate('/login');
       return;
     }
 
     setSavingRating(true);
     try {
-      await axios.post(`/api/user/venue/${venue.id}/rate`, { rating });
+      const res = await axios.post(`/api/user/venue/${venue.id}/rate`, { rating });
+      const nextAverage = Number(res.data?.userRatingsAverage || 0);
+      const nextCount = Number(res.data?.userRatingsCount || 0);
       setVenue((prev) => {
         if (!prev) return prev;
-        const previousMyRating = prev.viewer?.myRating || 0;
-        const currentTotal = prev.totalRatings || 0;
-        const previousTotalScore = prev.averageRating * currentTotal;
-        const adjustedTotalScore = previousMyRating > 0
-          ? (previousTotalScore - previousMyRating + rating)
-          : (previousTotalScore + rating);
-        const adjustedCount = previousMyRating > 0 ? currentTotal : currentTotal + 1;
-        const nextAverage = adjustedCount ? Number((adjustedTotalScore / adjustedCount).toFixed(1)) : 0;
 
         return {
           ...prev,
           averageRating: nextAverage,
-          totalRatings: adjustedCount,
+          totalRatings: nextCount,
           viewer: {
             ...prev.viewer,
             myRating: rating,
@@ -261,6 +278,7 @@ export default function PublicVenueShare() {
   }
 
   const mapEmbedUrl = getEmbedMapUrl(venue.mapLink || '', `${venue.address || ''} ${venue.city || ''}`.trim());
+  const mapHref = getMapHref(venue.mapLink || '', `${venue.address || ''} ${venue.city || ''}`.trim());
   const averageStars = Math.round(venue.averageRating || 0);
 
   return (
@@ -269,15 +287,17 @@ export default function PublicVenueShare() {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => navigate(-1)}
-                aria-label="Go back"
-                title="Go back"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
+                {hasUserSession && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => navigate(-1)}
+                  aria-label="Go back"
+                  title="Go back"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              )}
               <h1 className="text-4xl md:text-5xl font-bold text-slate-900">{capitalizeWords(venue.name)}</h1>
             </div>
             <p className="text-slate-600 text-lg">Explore this academy venue, facilities, games, and ratings.</p>
@@ -292,16 +312,18 @@ export default function PublicVenueShare() {
             >
               <Share2 className="h-4 w-4" />
             </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleToggleFavorite}
-              disabled={favoriting}
-              aria-label={venue.viewer?.isFavorite ? 'Unfavorite venue' : 'Favorite venue'}
-              title={venue.viewer?.isFavorite ? 'Unfavorite venue' : 'Favorite venue'}
-            >
-              <Heart className={`h-4 w-4 ${venue.viewer?.isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
-            </Button>
+            {hasUserSession && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleToggleFavorite}
+                disabled={favoriting}
+                aria-label={venue.viewer?.isFavorite ? 'Unfavorite venue' : 'Favorite venue'}
+                title={venue.viewer?.isFavorite ? 'Unfavorite venue' : 'Favorite venue'}
+              >
+                <Heart className={`h-4 w-4 ${venue.viewer?.isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
+              </Button>
+            )}
             <Button onClick={handleBookVenue}>
               Book Venue
             </Button>
@@ -330,8 +352,8 @@ export default function PublicVenueShare() {
                 referrerPolicy="no-referrer-when-downgrade"
               />
             )}
-            {venue.mapLink && (
-              <a href={venue.mapLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-700">
+            {mapHref && (
+              <a href={mapHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-700">
                 Open Map <ExternalLink className="h-3.5 w-3.5" />
               </a>
             )}
@@ -394,48 +416,47 @@ export default function PublicVenueShare() {
           </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Venue Rating</CardTitle>
-            <CardDescription>Average rating and your rating out of 5 stars.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-2">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <Star
-                  key={index}
-                  className={`h-6 w-6 ${index < averageStars ? 'text-amber-500 fill-amber-400' : 'text-slate-300'}`}
-                />
-              ))}
-              <span className="ml-2 text-sm text-slate-600">{venue.averageRating.toFixed(1)} / 5</span>
-            </div>
-
-            <div>
-              <p className="text-sm text-slate-600 mb-2">Your Rating</p>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: 5 }).map((_, index) => {
-                  const starNumber = index + 1;
-                  const active = starNumber <= (venue.viewer?.myRating || 0);
-                  return (
-                    <button
-                      key={starNumber}
-                      type="button"
-                      className="p-1"
-                      onClick={() => void handleRateVenue(starNumber)}
-                      disabled={savingRating}
-                      aria-label={`Rate ${starNumber} star${starNumber > 1 ? 's' : ''}`}
-                    >
-                      <Star className={`h-6 w-6 ${active ? 'text-amber-500 fill-amber-400' : 'text-slate-300'}`} />
-                    </button>
-                  );
-                })}
-                {!hasToken && (
-                  <span className="text-xs text-slate-500 ml-2">Login to rate</span>
-                )}
+        {hasUserSession && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Venue Rating</CardTitle>
+              <CardDescription>Average rating and your rating out of 5 stars.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-2">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <Star
+                    key={index}
+                    className={`h-6 w-6 ${index < averageStars ? 'text-amber-500 fill-amber-400' : 'text-slate-300'}`}
+                  />
+                ))}
+                <span className="ml-2 text-sm text-slate-600">{venue.averageRating.toFixed(1)} / 5</span>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+
+              <div>
+                <p className="text-sm text-slate-600 mb-2">Your Rating</p>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: 5 }).map((_, index) => {
+                    const starNumber = index + 1;
+                    const active = starNumber <= (venue.viewer?.myRating || 0);
+                    return (
+                      <button
+                        key={starNumber}
+                        type="button"
+                        className="p-1"
+                        onClick={() => void handleRateVenue(starNumber)}
+                        disabled={savingRating}
+                        aria-label={`Rate ${starNumber} star${starNumber > 1 ? 's' : ''}`}
+                      >
+                        <Star className={`h-6 w-6 ${active ? 'text-amber-500 fill-amber-400' : 'text-slate-300'}`} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
