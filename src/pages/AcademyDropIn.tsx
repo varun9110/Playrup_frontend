@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { format, addDays, subDays } from 'date-fns';
+import { format } from 'date-fns';
 import { capitalizeWords } from '@/lib/utils';
 import { Navbar } from '@/components/layout';
 import { Button } from '@/components/ui/button';
@@ -15,16 +15,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import {
-  ArrowLeft,
-  ArrowRight,
   Building2,
   Calendar,
   Clock,
-  Copy,
   PlusCircle,
-  RefreshCw,
   Settings,
-  Share2,
   Trash2,
   Users,
   Pencil,
@@ -74,6 +69,15 @@ interface DropIn {
   status: string;
 }
 
+interface DropInSchedule {
+  id: string;
+  displayDropIn: DropIn;
+  occurrences: DropIn[];
+  firstDate: string;
+  lastDate: string;
+  totalPendingRequests: number;
+}
+
 const DAYS_OF_WEEK = [
   { label: 'Sun', value: 0 },
   { label: 'Mon', value: 1 },
@@ -95,22 +99,19 @@ export default function AcademyDropIn() {
     try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch { return null; }
   }, []);
 
-  const dateInputRef = useRef<HTMLInputElement | null>(null);
-
   // ── Academy / sport selectors ──
   const [academies, setAcademies] = useState<Academy[]>([]);
   const [selectedAcademyId, setSelectedAcademyId] = useState('');
   const [selectedSport, setSelectedSport] = useState('');
 
-  // ── Calendar view ──
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  // ── Schedule list view ──
   const [dropIns, setDropIns] = useState<DropIn[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
 
   // ── Create dialog ──
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({
+    date: format(new Date(), 'yyyy-MM-dd'),
     courtNumber: '',
     title: '',
     description: '',
@@ -130,7 +131,6 @@ export default function AcademyDropIn() {
   const [cancelling, setCancelling] = useState(false);
   const [cancelMode, setCancelMode] = useState<'single' | 'series'>('single');
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
-  const [shareUrl, setShareUrl] = useState('');
   const [approving, setApproving] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -171,6 +171,43 @@ export default function AcademyDropIn() {
     return sport ? Array.from({ length: sport.numberOfCourts }, (_, i) => i + 1) : courts;
   }, [sports, selectedDropIn, courts]);
 
+  const scheduleGroups = useMemo<DropInSchedule[]>(() => {
+    const grouped = new Map<string, DropIn[]>();
+
+    dropIns.forEach((dropIn) => {
+      const key = dropIn.seriesId || dropIn._id;
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.push(dropIn);
+      } else {
+        grouped.set(key, [dropIn]);
+      }
+    });
+
+    return Array.from(grouped.entries())
+      .map(([id, occurrences]) => {
+        const sortedOccurrences = [...occurrences].sort((left, right) => {
+          if (left.date !== right.date) return left.date.localeCompare(right.date);
+          return left.startTime.localeCompare(right.startTime);
+        });
+
+        const displayDropIn = sortedOccurrences[0];
+
+        return {
+          id,
+          displayDropIn,
+          occurrences: sortedOccurrences,
+          firstDate: sortedOccurrences[0].date,
+          lastDate: sortedOccurrences[sortedOccurrences.length - 1].date,
+          totalPendingRequests: sortedOccurrences.reduce((sum, item) => sum + (item.pendingRequests?.length ?? 0), 0),
+        };
+      })
+      .sort((left, right) => {
+        if (left.firstDate !== right.firstDate) return left.firstDate.localeCompare(right.firstDate);
+        return left.displayDropIn.startTime.localeCompare(right.displayDropIn.startTime);
+      });
+  }, [dropIns]);
+
   // ── Fetch academies ──
   useEffect(() => {
     if (!user?.userId) return;
@@ -192,13 +229,11 @@ export default function AcademyDropIn() {
   }, [selectedAcademyId]);
 
   // ── Fetch drop-ins ──
-  const fetchDropIns = async (baseDate: Date = selectedDate) => {
+  const fetchDropIns = async () => {
     if (!selectedAcademyId) return;
-    const startDate = format(subDays(baseDate, 1), 'yyyy-MM-dd');
-    const endDate = format(addDays(baseDate, 1), 'yyyy-MM-dd');
     try {
       const res = await axios.get(`/api/dropin/academy/${selectedAcademyId}`, {
-        params: { startDate, endDate, sport: selectedSport || undefined },
+        params: { sport: selectedSport || undefined },
       });
       setDropIns(res.data.dropIns ?? []);
     } catch (err) {
@@ -206,22 +241,11 @@ export default function AcademyDropIn() {
     }
   };
 
-  useEffect(() => { fetchDropIns(); }, [selectedDate, selectedAcademyId, selectedSport]);
-
-  const onRefresh = async () => { setRefreshing(true); await fetchDropIns(); setRefreshing(false); };
-
-  const goToToday = async () => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
-    setSelectedDate(today);
-    setRefreshing(true);
-    await fetchDropIns(today);
-    setRefreshing(false);
-  };
+  useEffect(() => { fetchDropIns(); }, [selectedAcademyId, selectedSport]);
 
   // ── Create drop-in ──
   const handleCreate = async () => {
-    if (!selectedAcademyId || !selectedSport || !form.courtNumber || !form.startTime || !form.endTime || !form.maxParticipants) {
+    if (!selectedAcademyId || !selectedSport || !form.date || !form.courtNumber || !form.startTime || !form.endTime || !form.maxParticipants) {
       toast({ title: 'Please fill all required fields', variant: 'destructive' });
       return;
     }
@@ -234,7 +258,7 @@ export default function AcademyDropIn() {
         title: form.title,
         description: form.description,
         skillLevel: form.skillLevel,
-        date: format(selectedDate, 'yyyy-MM-dd'),
+        date: form.date,
         startTime: form.startTime,
         endTime: form.endTime,
         maxParticipants: parseInt(form.maxParticipants),
@@ -247,7 +271,7 @@ export default function AcademyDropIn() {
       const res = await axios.post('/api/dropin/create', payload);
       toast({ title: res.data.message });
       setCreateOpen(false);
-      setForm({ courtNumber: '', title: '', description: '', skillLevel: '', startTime: '', endTime: '', maxParticipants: '', pricePerParticipant: '0', recurrenceType: 'none', recurrenceDays: [], recurrenceUntil: '' });
+      setForm({ date: format(new Date(), 'yyyy-MM-dd'), courtNumber: '', title: '', description: '', skillLevel: '', startTime: '', endTime: '', maxParticipants: '', pricePerParticipant: '0', recurrenceType: 'none', recurrenceDays: [], recurrenceUntil: '' });
       await fetchDropIns();
     } catch (err: any) {
       toast({ title: err?.response?.data?.message ?? 'Failed to create drop-in', variant: 'destructive' });
@@ -274,28 +298,6 @@ export default function AcademyDropIn() {
       toast({ title: err?.response?.data?.message ?? 'Failed to cancel', variant: 'destructive' });
     } finally {
       setCancelling(false);
-    }
-  };
-
-  // ── Share link ──
-  const openShareLink = async (dropIn: DropIn) => {
-    try {
-      const res = await axios.get(`/api/dropin/${dropIn._id}/share-link`);
-      const code: string = res.data.shareCode;
-      const url = `${window.location.origin}/dropin/share/${code}`;
-      setShareUrl(url);
-    } catch {
-      setShareUrl('');
-    }
-  };
-
-  const copyShareUrl = async () => {
-    if (!shareUrl) return;
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      toast({ title: 'Share link copied!' });
-    } catch {
-      toast({ title: 'Failed to copy link', variant: 'destructive' });
     }
   };
 
@@ -337,6 +339,7 @@ export default function AcademyDropIn() {
 
   const openEditDialog = () => {
     if (!selectedDropIn) return;
+    setDetailOpen(false);
     setEditScope('single');
     setEditForm({
       courtNumber: String(selectedDropIn.courtNumber),
@@ -398,10 +401,12 @@ export default function AcademyDropIn() {
       toast({ title: res.data?.message ?? 'Drop-in updated successfully' });
       if (editScope === 'single') {
         setSelectedDropIn(res.data?.dropIn ?? selectedDropIn);
+        setEditOpen(false);
+        setDetailOpen(true);
       } else {
+        setEditOpen(false);
         setDetailOpen(false);
       }
-      setEditOpen(false);
       await fetchDropIns();
     } catch (err: any) {
       toast({ title: err?.response?.data?.message ?? 'Failed to update drop-in', variant: 'destructive' });
@@ -410,15 +415,7 @@ export default function AcademyDropIn() {
     }
   };
 
-  const openDatePicker = () => {
-    const input = dateInputRef.current;
-    if (!input) return;
-    if (typeof input.showPicker === 'function') { input.showPicker(); return; }
-    input.focus();
-  };
-
   // ── Render ──
-  const dropInsForDay = dropIns.filter(d => d.date === format(selectedDate, 'yyyy-MM-dd'));
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
@@ -431,14 +428,6 @@ export default function AcademyDropIn() {
             <h1 className="text-3xl md:text-4xl font-bold text-slate-800 mb-2">Drop-In Sessions</h1>
             <p className="text-slate-500 text-lg">Create and manage open court sessions that participants can join.</p>
           </div>
-          <div className="flex gap-3 shrink-0 flex-wrap">
-            <Button variant="outline" asChild>
-              <Link to="/academy-dashboard">
-                <Building2 className="h-4 w-4 mr-2" />
-                Dashboard
-              </Link>
-            </Button>
-          </div>
         </div>
 
         {/* Stats */}
@@ -447,8 +436,8 @@ export default function AcademyDropIn() {
             <CardContent className="flex items-center gap-4 p-5">
               <div className="p-3 rounded-xl bg-emerald-100"><Calendar className="h-5 w-5 text-emerald-600" /></div>
               <div>
-                <p className="text-xs text-slate-500">Drop-Ins Today</p>
-                <p className="text-2xl font-bold text-slate-800">{dropInsForDay.length}</p>
+                <p className="text-xs text-slate-500">Schedules Created</p>
+                <p className="text-2xl font-bold text-slate-800">{scheduleGroups.length}</p>
               </div>
             </CardContent>
           </Card>
@@ -456,9 +445,9 @@ export default function AcademyDropIn() {
             <CardContent className="flex items-center gap-4 p-5">
               <div className="p-3 rounded-xl bg-blue-100"><Users className="h-5 w-5 text-blue-600" /></div>
               <div>
-                <p className="text-xs text-slate-500">Participants Today</p>
+                <p className="text-xs text-slate-500">Occurrences Created</p>
                 <p className="text-2xl font-bold text-slate-800">
-                  {dropInsForDay.reduce((s, d) => s + (d.joinedParticipants?.length ?? 0), 0)}
+                  {scheduleGroups.reduce((sum, schedule) => sum + schedule.occurrences.length, 0)}
                 </p>
               </div>
             </CardContent>
@@ -469,7 +458,7 @@ export default function AcademyDropIn() {
               <div>
                 <p className="text-xs text-slate-500">Pending Requests</p>
                 <p className="text-2xl font-bold text-slate-800">
-                  {dropInsForDay.reduce((s, d) => s + (d.pendingRequests?.length ?? 0), 0)}
+                  {scheduleGroups.reduce((sum, schedule) => sum + schedule.totalPendingRequests, 0)}
                 </p>
               </div>
             </CardContent>
@@ -481,8 +470,8 @@ export default function AcademyDropIn() {
           <CardHeader className="bg-gradient-to-r from-slate-50 to-white border-b space-y-4">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div>
-                <CardTitle className="text-xl text-slate-800">Session List</CardTitle>
-                <CardDescription>Select academy, sport, and date to manage drop-in sessions.</CardDescription>
+                <CardTitle className="text-xl text-slate-800">Schedule List</CardTitle>
+                <CardDescription>Select academy and sport to manage created drop-in schedules instead of each occurrence.</CardDescription>
               </div>
             </div>
 
@@ -520,51 +509,19 @@ export default function AcademyDropIn() {
               </div>
             )}
 
-            {/* Date nav */}
             <div className="flex items-center gap-3 flex-wrap">
-              <Button variant="outline" size="sm" onClick={() => setSelectedDate(d => subDays(d, 1))}>
-                <ArrowLeft className="h-4 w-4 mr-1" /> Prev
-              </Button>
-              <div
-                className="relative h-10 min-w-[160px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm cursor-pointer"
-                onClick={openDatePicker}
-              >
-                <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-slate-800">
-                  {format(selectedDate, 'yyyy-MM-dd')}
-                </span>
-                <input
-                  ref={dateInputRef}
-                  type="date"
-                  value={format(selectedDate, 'yyyy-MM-dd')}
-                  onChange={e => {
-                    const [y, m, d] = (e.target.value || '').split('-').map(Number);
-                    if (y && m && d) setSelectedDate(new Date(y, m - 1, d, 12));
-                  }}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                />
-              </div>
-              <Button variant="outline" size="sm" onClick={() => setSelectedDate(d => addDays(d, 1))}>
-                Next <ArrowRight className="h-4 w-4 ml-1" />
-              </Button>
-              <Button variant="outline" size="sm" onClick={goToToday}>
-                Today
-              </Button>
               <Button size="sm" onClick={() => setCreateOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
                 <PlusCircle className="h-4 w-4 mr-1" />
                 New Drop-In
-              </Button>
-              <Button size="sm" onClick={onRefresh} disabled={refreshing} className="bg-blue-600 text-white hover:bg-blue-700">
-                <RefreshCw className={`h-4 w-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
-                {refreshing ? 'Refreshing…' : 'Refresh'}
               </Button>
             </div>
           </CardHeader>
 
           <CardContent className="p-4 md:p-6">
-            {dropInsForDay.length === 0 ? (
+            {scheduleGroups.length === 0 ? (
               <div className="text-center py-16 text-slate-500">
                 <Calendar className="h-12 w-12 mx-auto mb-4 text-slate-300" />
-                <p className="text-lg font-medium">No drop-in sessions on this day.</p>
+                <p className="text-lg font-medium">No drop-in schedules created yet.</p>
                 <p className="text-sm mt-1">
                   Click{' '}
                   <button
@@ -579,16 +536,22 @@ export default function AcademyDropIn() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {dropInsForDay.map(dropIn => (
-                  <motion.div key={dropIn._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                {scheduleGroups.map(schedule => {
+                  const dropIn = schedule.displayDropIn;
+                  const scheduleLabel = dropIn.recurrenceType === 'none'
+                    ? 'One-time'
+                    : dropIn.recurrenceType === 'weekly'
+                      ? 'Recurring weekly'
+                      : 'Recurring daily';
+
+                  return (
+                  <motion.div key={schedule.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                     <Card className="border-emerald-200 hover:shadow-md transition-shadow cursor-pointer"
-                      onClick={() => { setSelectedDropIn(dropIn); openShareLink(dropIn); setDetailOpen(true); }}>
+                      onClick={() => { setSelectedDropIn(dropIn); setDetailOpen(true); }}>
                       <CardContent className="p-5 space-y-3">
                         <div className="flex items-center justify-between">
-                          <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Drop-In</Badge>
-                          {dropIn.recurrenceType !== 'none' && (
-                            <Badge variant="outline" className="capitalize">{dropIn.recurrenceType}</Badge>
-                          )}
+                          <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Schedule</Badge>
+                          <Badge variant="outline" className="capitalize">{scheduleLabel}</Badge>
                         </div>
                         <div>
                           <h3 className="font-semibold text-slate-800 truncate">{dropIn.title || capitalizeWords(dropIn.sport)}</h3>
@@ -598,14 +561,21 @@ export default function AcademyDropIn() {
                           <Clock className="h-4 w-4 text-slate-400" />
                           {dropIn.startTime} – {dropIn.endTime}
                         </div>
+                        <div className="space-y-1 text-xs text-slate-500">
+                          <p>
+                            {schedule.firstDate === schedule.lastDate
+                              ? `Date: ${schedule.firstDate}`
+                              : `Runs: ${schedule.firstDate} to ${schedule.lastDate}`}
+                          </p>
+                          <p>{schedule.occurrences.length} occurrence{schedule.occurrences.length === 1 ? '' : 's'}</p>
+                        </div>
                         <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center gap-1 text-slate-600">
-                            <Users className="h-4 w-4 text-slate-400" />
-                            {dropIn.joinedParticipants?.length ?? 0} / {dropIn.maxParticipants} joined
+                          <div className="text-slate-600">
+                            {schedule.occurrences.length} occurrence{schedule.occurrences.length === 1 ? '' : 's'}
                           </div>
-                          {(dropIn.pendingRequests?.length ?? 0) > 0 && (
+                          {schedule.totalPendingRequests > 0 && (
                             <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 text-xs">
-                              {dropIn.pendingRequests.length} pending
+                              {schedule.totalPendingRequests} pending
                             </Badge>
                           )}
                         </div>
@@ -615,7 +585,7 @@ export default function AcademyDropIn() {
                       </CardContent>
                     </Card>
                   </motion.div>
-                ))}
+                )})}
               </div>
             )}
           </CardContent>
@@ -628,11 +598,22 @@ export default function AcademyDropIn() {
           <DialogHeader>
             <DialogTitle>New Drop-In Session</DialogTitle>
             <DialogDescription>
-              Create a {capitalizeWords(selectedSport || 'sport')} drop-in for {format(selectedDate, 'dd MMM yyyy')}.
+              Create a {capitalizeWords(selectedSport || 'sport')} drop-in schedule.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
+            <div>
+              <Label>Date *</Label>
+              <Input
+                type="date"
+                className="mt-1"
+                value={form.date}
+                min={format(new Date(), 'yyyy-MM-dd')}
+                onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+              />
+            </div>
+
             {/* Court */}
             <div>
               <Label>Court *</Label>
@@ -755,7 +736,7 @@ export default function AcademyDropIn() {
               <div>
                 <Label>Repeat Until *</Label>
                 <Input type="date" className="mt-1" value={form.recurrenceUntil}
-                  min={format(selectedDate, 'yyyy-MM-dd')}
+                  min={form.date || format(new Date(), 'yyyy-MM-dd')}
                   onChange={e => setForm(f => ({ ...f, recurrenceUntil: e.target.value }))} />
               </div>
             )}
@@ -771,7 +752,7 @@ export default function AcademyDropIn() {
       </Dialog>
 
       {/* ── Detail / Manage Dialog ────────────────────────────────── */}
-      <Dialog open={detailOpen} onOpenChange={v => { setDetailOpen(v); if (!v) { setShareUrl(''); } }}>
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           {selectedDropIn && (
             <>
@@ -787,69 +768,13 @@ export default function AcademyDropIn() {
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div><span className="text-slate-500">Sport</span><p className="font-medium">{capitalizeWords(selectedDropIn.sport)}</p></div>
                   <div><span className="text-slate-500">Skill Level</span><p className="font-medium">{selectedDropIn.skillLevel || 'Any'}</p></div>
-                  <div><span className="text-slate-500">Participants</span><p className="font-medium">{selectedDropIn.joinedParticipants?.length ?? 0} / {selectedDropIn.maxParticipants}</p></div>
+                  <div><span className="text-slate-500">Capacity</span><p className="font-medium">{selectedDropIn.maxParticipants} players</p></div>
                   <div><span className="text-slate-500">Price</span><p className="font-medium">{selectedDropIn.pricePerParticipant > 0 ? `₹${selectedDropIn.pricePerParticipant}` : 'Free'}</p></div>
                   <div><span className="text-slate-500">Recurrence</span><p className="font-medium capitalize">{selectedDropIn.recurrenceType}</p></div>
                 </div>
 
                 {selectedDropIn.description && (
                   <div><p className="text-xs text-slate-500 mb-1">Description</p><p className="text-sm">{selectedDropIn.description}</p></div>
-                )}
-
-                {/* Share link */}
-                <div>
-                  <p className="text-xs font-medium text-slate-500 mb-2">Share Link</p>
-                  {shareUrl ? (
-                    <div className="flex items-center gap-2 bg-slate-50 rounded-lg p-2 border">
-                      <p className="text-xs text-slate-700 flex-1 truncate">{shareUrl}</p>
-                      <Button size="sm" variant="ghost" onClick={copyShareUrl}>
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="ghost" asChild>
-                        <a href={shareUrl} target="_blank" rel="noopener noreferrer">
-                          <Share2 className="h-4 w-4" />
-                        </a>
-                      </Button>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-400">Loading share link…</p>
-                  )}
-                </div>
-
-                {/* Joined participants */}
-                {(selectedDropIn.joinedParticipants?.length ?? 0) > 0 && (
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 mb-2">Joined Participants</p>
-                    <div className="space-y-2">
-                      {selectedDropIn.joinedParticipants.map(p => (
-                        <div key={p._id} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-100">
-                          <div className="min-w-0">
-                            <p className="font-medium truncate">{capitalizeWords(p.name)}</p>
-                            {p.email && <p className="text-slate-500 text-xs truncate">{p.email}</p>}
-                          </div>
-                          <div className="flex gap-2 shrink-0">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs"
-                              onClick={() => handleViewParticipantProfile(p._id)}
-                            >
-                              View Profile
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs text-red-600 border-red-200"
-                              disabled={rejecting === p._id}
-                              onClick={() => handleReject(selectedDropIn._id, p._id)}
-                            >
-                              {rejecting === p._id ? '…' : 'Remove'}
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
                 )}
 
                 {/* Pending requests */}
@@ -883,21 +808,17 @@ export default function AcademyDropIn() {
                 )}
 
                 {/* Cancel options */}
+                {selectedDropIn.seriesId && (
                 <div>
                   <p className="text-xs font-medium text-slate-500 mb-2">Cancel Session</p>
                   <div className="flex gap-2 flex-wrap">
-                    <Button size="sm" variant="outline" className="text-red-600 border-red-200"
-                      onClick={() => { setCancelMode('single'); setConfirmCancelOpen(true); }}>
-                      <Trash2 className="h-4 w-4 mr-1" /> Cancel This Session
+                    <Button size="sm" variant="outline" className="text-red-700 border-red-200"
+                      onClick={() => { setCancelMode('series'); setConfirmCancelOpen(true); }}>
+                      <Trash2 className="h-4 w-4 mr-1" /> Cancel This & Future
                     </Button>
-                    {selectedDropIn.seriesId && (
-                      <Button size="sm" variant="outline" className="text-red-700 border-red-200"
-                        onClick={() => { setCancelMode('series'); setConfirmCancelOpen(true); }}>
-                        <Trash2 className="h-4 w-4 mr-1" /> Cancel This & Future
-                      </Button>
-                    )}
                   </div>
                 </div>
+                )}
               </div>
 
               <DialogFooter>
@@ -912,7 +833,7 @@ export default function AcademyDropIn() {
       </Dialog>
 
       {/* ── Edit Dialog ───────────────────────────────────────────── */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+      <Dialog open={editOpen} onOpenChange={(open) => { setEditOpen(open); if (!open && selectedDropIn && editScope === 'single') setDetailOpen(true); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Drop-In Session</DialogTitle>

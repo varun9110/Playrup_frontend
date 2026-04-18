@@ -7,6 +7,7 @@ import {
   setMinutes,
   setSeconds,
   isSameDay,
+  startOfWeek,
   addDays,
   subDays
 } from "date-fns";
@@ -100,10 +101,14 @@ interface CoachingSession {
   shareCode?: string;
 }
 
+type CalendarFilter = 'all' | 'personal' | 'dropin' | 'coaching';
+
 export default function AcademyBooking() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
+  const [calendarFilter, setCalendarFilter] = useState<CalendarFilter>('all');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [selectedDropIn, setSelectedDropIn] = useState<DropInSession | null>(null);
   const [selectedCoaching, setSelectedCoaching] = useState<CoachingSession | null>(null);
@@ -133,8 +138,16 @@ export default function AcademyBooking() {
   const user = JSON.parse(localStorage.getItem("user") || "{}") || {};
   const userId = user?.userId;
 
-  const startDate = format(subDays(selectedDate, 1), "yyyy-MM-dd");
-  const endDate = format(addDays(selectedDate, 1), "yyyy-MM-dd");
+  const weekStart = useMemo(() => startOfWeek(selectedDate, { weekStartsOn: 1 }), [selectedDate]);
+  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, idx) => addDays(weekStart, idx)), [weekStart]);
+  const startDate = useMemo(
+    () => format(viewMode === 'week' ? weekStart : subDays(selectedDate, 1), "yyyy-MM-dd"),
+    [selectedDate, viewMode, weekStart]
+  );
+  const endDate = useMemo(
+    () => format(viewMode === 'week' ? addDays(weekStart, 6) : addDays(selectedDate, 1), "yyyy-MM-dd"),
+    [selectedDate, viewMode, weekStart]
+  );
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -344,8 +357,48 @@ export default function AcademyBooking() {
     .filter((b) => (selectedSport ? b.sport === selectedSport : true));
   const dropInsForDay = dropIns.filter(d => d.date === format(selectedDate, "yyyy-MM-dd") && (!selectedSport || d.sport === selectedSport));
   const coachingForDay = coachingSessions.filter(c => c.date === format(selectedDate, "yyyy-MM-dd") && (!selectedSport || c.sport === selectedSport));
+  const weekDateSet = new Set(weekDays.map((day) => format(day, "yyyy-MM-dd")));
+  const bookingsForWeek = bookings
+    .filter((b) => weekDays.some((day) => isSameDay(b.date, day)))
+    .filter((b) => (selectedSport ? b.sport === selectedSport : true));
+  const dropInsForWeek = dropIns.filter((d) => weekDateSet.has(d.date) && (!selectedSport || d.sport === selectedSport));
+  const coachingForWeek = coachingSessions.filter((c) => weekDateSet.has(c.date) && (!selectedSport || c.sport === selectedSport));
+  const showPersonalBookings = calendarFilter === 'all' || calendarFilter === 'personal';
+  const showDropInBookings = calendarFilter === 'all' || calendarFilter === 'dropin';
+  const showCoachingBookings = calendarFilter === 'all' || calendarFilter === 'coaching';
+  const visibleBookingsForDay = showPersonalBookings ? bookingsForDay : [];
+  const visibleDropInsForDay = showDropInBookings ? dropInsForDay : [];
+  const visibleCoachingForDay = showCoachingBookings ? coachingForDay : [];
+  const visibleBookingsForWeek = showPersonalBookings ? bookingsForWeek : [];
+  const visibleDropInsForWeek = showDropInBookings ? dropInsForWeek : [];
+  const visibleCoachingForWeek = showCoachingBookings ? coachingForWeek : [];
+  const totalVisibleDay = visibleBookingsForDay.length + visibleDropInsForDay.length + visibleCoachingForDay.length;
+  const totalVisibleWeek = visibleBookingsForWeek.length + visibleDropInsForWeek.length + visibleCoachingForWeek.length;
   const selectedAcademyName = academies.find((academy) => academy._id === selectedAcademy)?.name;
-  const activeCourtsCount = new Set(bookingsForDay.map((booking) => booking.court)).size;
+  const activeCourtsCount = useMemo(() => {
+    const courtSet = new Set<number>();
+    const addCourt = (court: number) => courtSet.add(court);
+
+    if (viewMode === 'week') {
+      visibleBookingsForWeek.forEach((booking) => addCourt(booking.court));
+      visibleDropInsForWeek.forEach((dropIn) => addCourt(dropIn.courtNumber));
+      visibleCoachingForWeek.forEach((coaching) => addCourt(coaching.courtNumber));
+    } else {
+      visibleBookingsForDay.forEach((booking) => addCourt(booking.court));
+      visibleDropInsForDay.forEach((dropIn) => addCourt(dropIn.courtNumber));
+      visibleCoachingForDay.forEach((coaching) => addCourt(coaching.courtNumber));
+    }
+
+    return courtSet.size;
+  }, [
+    viewMode,
+    visibleBookingsForWeek,
+    visibleDropInsForWeek,
+    visibleCoachingForWeek,
+    visibleBookingsForDay,
+    visibleDropInsForDay,
+    visibleCoachingForDay,
+  ]);
   const selectedDropInShareLink = dropInShareUrl || (selectedDropIn?.shareCode
     ? `${window.location.origin}/dropin/share/${selectedDropIn.shareCode}`
     : "");
@@ -556,8 +609,12 @@ export default function AcademyBooking() {
                 <Calendar className="h-5 w-5 text-blue-600" />
               </div>
               <div>
-                <p className="text-xs text-slate-500">Selected Date</p>
-                <p className="text-base md:text-lg font-bold text-slate-800">{format(selectedDate, "dd MMM")}</p>
+                <p className="text-xs text-slate-500">{viewMode === 'week' ? 'Selected Week' : 'Selected Date'}</p>
+                <p className="text-base md:text-lg font-bold text-slate-800">
+                  {viewMode === 'week'
+                    ? `${format(weekStart, "dd MMM")} - ${format(addDays(weekStart, 6), "dd MMM")}`
+                    : format(selectedDate, "EEE, dd MMM")}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -567,8 +624,8 @@ export default function AcademyBooking() {
                 <Trophy className="h-5 w-5 text-emerald-600" />
               </div>
               <div>
-                <p className="text-xs text-slate-500">Bookings Today</p>
-                <p className="text-2xl font-bold text-slate-800">{bookingsForDay.length}</p>
+                <p className="text-xs text-slate-500">{viewMode === 'week' ? 'Visible This Week' : 'Visible Today'}</p>
+                <p className="text-2xl font-bold text-slate-800">{viewMode === 'week' ? totalVisibleWeek : totalVisibleDay}</p>
               </div>
             </CardContent>
           </Card>
@@ -602,8 +659,10 @@ export default function AcademyBooking() {
           <CardHeader className="bg-gradient-to-r from-slate-50 to-white border-b space-y-4">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div>
-                <CardTitle className="text-xl text-slate-800">Day View Timeline</CardTitle>
-                <CardDescription className="text-slate-500 mt-1">Select academy, sport and date to inspect all reservations.</CardDescription>
+                <CardTitle className="text-xl text-slate-800">{viewMode === 'week' ? 'Week View Timeline' : 'Day View Timeline'}</CardTitle>
+                <CardDescription className="text-slate-500 mt-1">
+                  Select academy, sport and {viewMode === 'week' ? 'week range' : 'date'} to inspect all reservations.
+                </CardDescription>
               </div>
               <Badge variant="outline" className="w-fit border-slate-300 text-slate-700">
                 {selectedAcademyName ? capitalizeWords(selectedAcademyName) : "-"}
@@ -653,9 +712,35 @@ export default function AcademyBooking() {
                 )}
               </div>
 
+              <div>
+                <p className="text-xs font-medium text-slate-500 mb-1.5">View</p>
+                <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'day' | 'week')}>
+                  <TabsList className="w-fit bg-slate-100 p-1 gap-1">
+                    <TabsTrigger value="day" className="data-[state=active]:bg-white">Day</TabsTrigger>
+                    <TabsTrigger value="week" className="data-[state=active]:bg-white">Week</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-slate-500 mb-1.5">Filter</p>
+                <Tabs value={calendarFilter} onValueChange={(value) => setCalendarFilter(value as CalendarFilter)}>
+                  <TabsList className="w-fit bg-slate-100 p-1 gap-1 flex-wrap h-auto">
+                    <TabsTrigger value="all" className="data-[state=active]:bg-white">All</TabsTrigger>
+                    <TabsTrigger value="personal" className="data-[state=active]:bg-white">Personal</TabsTrigger>
+                    <TabsTrigger value="dropin" className="data-[state=active]:bg-white">Drop-In</TabsTrigger>
+                    <TabsTrigger value="coaching" className="data-[state=active]:bg-white">Coaching</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-[auto_auto_auto_auto_auto] gap-3 items-end">
-                <Button variant="outline" onClick={() => setSelectedDate(subDays(selectedDate, 1))} className="h-10">
-                  <ArrowLeft className="h-4 w-4 mr-1" /> Prev
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedDate(subDays(selectedDate, viewMode === 'week' ? 7 : 1))}
+                  className="h-10"
+                >
+                  <ArrowLeft className="h-4 w-4 mr-1" /> {viewMode === 'week' ? 'Prev Week' : 'Prev'}
                 </Button>
 
                 <div
@@ -671,7 +756,7 @@ export default function AcademyBooking() {
                   }}
                 >
                   <span className="absolute inset-0 flex items-center justify-center text-center text-slate-800 pointer-events-none">
-                    {format(selectedDate, "yyyy-MM-dd")}
+                    {viewMode === 'week' ? format(selectedDate, "yyyy-MM-dd") : format(selectedDate, "EEE, yyyy-MM-dd")}
                   </span>
                   <input
                     ref={dateInputRef}
@@ -683,8 +768,12 @@ export default function AcademyBooking() {
                   />
                 </div>
 
-                <Button variant="outline" onClick={() => setSelectedDate(addDays(selectedDate, 1))} className="h-10">
-                  Next <ArrowRight className="h-4 w-4 ml-1" />
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedDate(addDays(selectedDate, viewMode === 'week' ? 7 : 1))}
+                  className="h-10"
+                >
+                  {viewMode === 'week' ? 'Next Week' : 'Next'} <ArrowRight className="h-4 w-4 ml-1" />
                 </Button>
 
                 <Button variant="outline" onClick={goToToday} className="h-10">
@@ -710,6 +799,180 @@ export default function AcademyBooking() {
                   Select an academy and sport to view court bookings.
                 </CardContent>
               </Card>
+            ) : viewMode === 'week' ? (
+              <div className="overflow-auto rounded-lg border border-slate-200">
+                <div
+                  className="grid relative bg-white min-w-[1800px]"
+                  style={{
+                    gridTemplateColumns: `120px repeat(${weekDays.length * courts.length}, minmax(140px, 1fr))`,
+                    gridAutoRows: "72px",
+                  }}
+                >
+                  <div className="border p-2 bg-slate-50" />
+
+                  {weekDays.map((day) => (
+                    courts.map((court) => (
+                      <div
+                        key={`${format(day, 'yyyy-MM-dd')}-${court}`}
+                        className="border p-2 text-center bg-slate-50"
+                      >
+                        <p className="text-[11px] text-slate-500">{format(day, 'EEE dd MMM')}</p>
+                        <p className="font-semibold text-slate-800 text-sm">Court {court}</p>
+                      </div>
+                    ))
+                  ))}
+
+                  {(() => {
+                    const alreadyRenderedBooking = new Set<string>();
+                    const alreadyRenderedDropIn = new Set<string>();
+                    const alreadyRenderedCoaching = new Set<string>();
+
+                    return hours.map((hour) => (
+                      <React.Fragment key={`week-${hour.toISOString()}`}>
+                        <div className="border p-2 text-sm bg-slate-50 text-slate-600">
+                          {format(hour, "hh:mm a")}
+                        </div>
+
+                        {weekDays.map((day) => {
+                          const dayKey = format(day, "yyyy-MM-dd");
+
+                          return courts.map((court) => {
+                            const bookingsForCourt = visibleBookingsForWeek.filter((b) => b.court === court && isSameDay(b.date, day));
+                            const dropInsForCourt = visibleDropInsForWeek.filter((d) => d.courtNumber === court && d.date === dayKey);
+                            const coachingForCourt = visibleCoachingForWeek.filter((c) => c.courtNumber === court && c.date === dayKey);
+
+                            return (
+                              <div key={`${dayKey}-${court}`} className="relative border overflow-visible">
+                                {bookingsForCourt.map((booking) => {
+                                  if (alreadyRenderedBooking.has(booking.id)) return null;
+
+                                  const slotHeight = 72;
+                                  const firstHour = hours[0].getHours() + hours[0].getMinutes() / 60;
+                                  const bookingStartHour = booking.start.getHours() + booking.start.getMinutes() / 60;
+                                  const bookingEndHour = booking.end.getHours() + booking.end.getMinutes() / 60;
+                                  const durationMinutes = (booking.end.getTime() - booking.start.getTime()) / 60000;
+
+                                  if (hour.getHours() + hour.getMinutes() / 60 > bookingStartHour) return null;
+
+                                  alreadyRenderedBooking.add(booking.id);
+
+                                  const top = (bookingStartHour - firstHour) * slotHeight;
+                                  const computedHeight = (bookingEndHour - bookingStartHour) * slotHeight;
+                                  const height = Math.max(computedHeight, durationMinutes <= 30 ? 44 : 40);
+                                  const isCompactCard = height <= 52;
+
+                                  return (
+                                    <motion.div
+                                      key={booking.id}
+                                      initial={{ opacity: 0 }}
+                                      animate={{ opacity: 1 }}
+                                      className="absolute z-20 left-1 right-1 rounded-xl bg-blue-100 border border-blue-300 px-2 py-1.5 text-slate-800 shadow-sm cursor-pointer overflow-hidden"
+                                      style={{ top, height }}
+                                      onClick={() => setSelectedBooking(booking)}
+                                    >
+                                      <div className="font-semibold text-[11px] leading-tight truncate">{booking.userName}</div>
+                                      {!isCompactCard && (
+                                        <div className="text-[11px] text-slate-700 truncate">{capitalizeWords(booking.sport)}</div>
+                                      )}
+                                      <div className="text-[10px] leading-tight mt-0.5 whitespace-nowrap">
+                                        {format(booking.start, "hh:mm a")} - {format(booking.end, "hh:mm a")}
+                                      </div>
+                                    </motion.div>
+                                  );
+                                })}
+
+                                {dropInsForCourt.map((dropIn) => {
+                                  if (alreadyRenderedDropIn.has(dropIn._id)) return null;
+
+                                  const slotHeight = 72;
+                                  const firstHour = hours[0].getHours() + hours[0].getMinutes() / 60;
+                                  const [dStartH, dStartM] = dropIn.startTime.split(':').map(Number);
+                                  const [dEndH, dEndM] = dropIn.endTime.split(':').map(Number);
+                                  const dropInStartHour = dStartH + dStartM / 60;
+                                  const dropInEndHour = dEndH + dEndM / 60;
+
+                                  if (hour.getHours() + hour.getMinutes() / 60 > dropInStartHour) return null;
+
+                                  alreadyRenderedDropIn.add(dropIn._id);
+
+                                  const top = (dropInStartHour - firstHour) * slotHeight;
+                                  const height = Math.max((dropInEndHour - dropInStartHour) * slotHeight, 40);
+                                  const isCompact = height <= 52;
+
+                                  return (
+                                    <motion.div
+                                      key={dropIn._id}
+                                      initial={{ opacity: 0 }}
+                                      animate={{ opacity: 1 }}
+                                      className="absolute z-20 left-1 right-1 rounded-xl bg-emerald-100 border border-emerald-400 px-2 py-1.5 text-slate-800 shadow-sm cursor-pointer overflow-hidden"
+                                      style={{ top, height }}
+                                      onClick={() => { void openDropInDetails(dropIn._id); }}
+                                    >
+                                      <div className="font-semibold text-[11px] leading-tight truncate">
+                                        Drop-In {dropIn.title ? `· ${dropIn.title}` : ''}
+                                      </div>
+                                      {!isCompact && (
+                                        <div className="text-[11px] text-slate-700 truncate">
+                                          {(dropIn.joinedParticipants?.length ?? 0)}/{dropIn.maxParticipants} joined
+                                        </div>
+                                      )}
+                                      <div className="text-[10px] leading-tight mt-0.5 whitespace-nowrap">
+                                        {dropIn.startTime} – {dropIn.endTime}
+                                      </div>
+                                    </motion.div>
+                                  );
+                                })}
+
+                                {coachingForCourt.map((coaching) => {
+                                  if (alreadyRenderedCoaching.has(coaching._id)) return null;
+
+                                  const slotHeight = 72;
+                                  const firstHour = hours[0].getHours() + hours[0].getMinutes() / 60;
+                                  const [cStartH, cStartM] = coaching.startTime.split(':').map(Number);
+                                  const [cEndH, cEndM] = coaching.endTime.split(':').map(Number);
+                                  const coachingStartHour = cStartH + cStartM / 60;
+                                  const coachingEndHour = cEndH + cEndM / 60;
+
+                                  if (hour.getHours() + hour.getMinutes() / 60 > coachingStartHour) return null;
+
+                                  alreadyRenderedCoaching.add(coaching._id);
+
+                                  const top = (coachingStartHour - firstHour) * slotHeight;
+                                  const height = Math.max((coachingEndHour - coachingStartHour) * slotHeight, 40);
+                                  const isCompact = height <= 52;
+
+                                  return (
+                                    <motion.div
+                                      key={coaching._id}
+                                      initial={{ opacity: 0 }}
+                                      animate={{ opacity: 1 }}
+                                      className="absolute z-20 left-1 right-1 rounded-xl bg-amber-100 border border-amber-400 px-2 py-1.5 text-slate-800 shadow-sm cursor-pointer overflow-hidden"
+                                      style={{ top, height }}
+                                      onClick={() => { void openCoachingDetails(coaching._id); }}
+                                    >
+                                      <div className="font-semibold text-[11px] leading-tight truncate">
+                                        Coaching {coaching.title ? `· ${coaching.title}` : ''}
+                                      </div>
+                                      {!isCompact && (
+                                        <div className="text-[11px] text-slate-700 truncate">
+                                          {coaching.joinedParticipants?.length ?? 0} joined
+                                        </div>
+                                      )}
+                                      <div className="text-[10px] leading-tight mt-0.5 whitespace-nowrap">
+                                        {coaching.startTime} – {coaching.endTime}
+                                      </div>
+                                    </motion.div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          });
+                        })}
+                      </React.Fragment>
+                    ));
+                  })()}
+                </div>
+              </div>
             ) : (
               <div className="overflow-auto rounded-lg border border-slate-200">
                 <div
@@ -739,9 +1002,9 @@ export default function AcademyBooking() {
                         </div>
 
                         {courts.map((court) => {
-                          const bookingsForCourt = bookingsForDay.filter((b) => b.court === court);
-                          const dropInsForCourt = dropInsForDay.filter((d) => d.courtNumber === court);
-                          const coachingForCourt = coachingForDay.filter((c) => c.courtNumber === court);
+                          const bookingsForCourt = visibleBookingsForDay.filter((b) => b.court === court);
+                          const dropInsForCourt = visibleDropInsForDay.filter((d) => d.courtNumber === court);
+                          const coachingForCourt = visibleCoachingForDay.filter((c) => c.courtNumber === court);
 
                           return (
                             <div key={court} className="relative border overflow-visible">

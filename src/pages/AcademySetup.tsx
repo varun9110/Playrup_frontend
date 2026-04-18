@@ -276,14 +276,6 @@ export default function AcademySetup() {
                 Configure sports, court counts, operating windows and hourly pricing.
               </p>
             </div>
-            <div className="flex gap-3 shrink-0">
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white" asChild>
-                <Link to="/academy-dashboard">
-                  <Building2 className="h-4 w-4 mr-2" />
-                  Academy Dashboard
-                </Link>
-              </Button>
-            </div>
           </div>
         </div>
 

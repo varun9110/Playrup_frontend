@@ -1,27 +1,26 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { addDays, format, subDays } from 'date-fns';
+import { format } from 'date-fns';
 import { Navbar } from '@/components/layout';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  ArrowLeft,
-  ArrowRight,
   Building2,
   Calendar,
   Clock,
   Copy,
+  Pencil,
   PlusCircle,
   RefreshCw,
-  Settings,
   Share2,
   Trash2,
   Users,
@@ -46,6 +45,40 @@ interface Participant {
   _id: string;
   name: string;
   email?: string;
+}
+
+interface SessionSummary {
+  _id: string;
+  date: string;
+  joinedParticipants: Participant[];
+  pendingRequests: Participant[];
+}
+
+interface CoachingProgram {
+  programKey: string;
+  seriesId: string | null;
+  representativeId: string;
+  sport: string;
+  courtNumber: number;
+  title: string;
+  description?: string;
+  skillLevel?: string;
+  coachName?: string;
+  coachBio?: string;
+  coachContact?: string;
+  startTime: string;
+  endTime: string;
+  pricePerParticipant: number;
+  recurrenceType: 'none' | 'daily' | 'weekly';
+  recurrenceDays: number[];
+  recurrenceUntil: string | null;
+  firstDate: string;
+  lastDate: string;
+  totalSessions: number;
+  joinedCount: number;
+  pendingCount: number;
+  shareCode?: string;
+  sessions: SessionSummary[];
 }
 
 interface Coaching {
@@ -81,7 +114,26 @@ const DAYS_OF_WEEK = [
   { label: 'Sat', value: 6 },
 ];
 
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const SKILL_LEVELS = ['Beginner', 'Amateur', 'Intermediate', 'Advanced', 'Professional'];
+
+const getUniquePlayers = (program: CoachingProgram): Participant[] => {
+  const seen = new Set<string>();
+  return program.sessions
+    .flatMap((s) => s.joinedParticipants)
+    .filter((p) => { if (seen.has(p._id)) return false; seen.add(p._id); return true; });
+};
+
+const getScheduleDescription = (program: CoachingProgram): string => {
+  if (program.recurrenceType === 'weekly') {
+    const days = [...program.recurrenceDays].sort().map((d) => DAY_LABELS[d]).join(', ');
+    return `Every ${days} · ${program.startTime}–${program.endTime}`;
+  }
+  if (program.recurrenceType === 'daily') {
+    return `Daily · ${program.startTime}–${program.endTime}`;
+  }
+  return `${program.firstDate} · ${program.startTime}–${program.endTime}`;
+};
 
 export default function AcademyCoaching() {
   const navigate = useNavigate();
@@ -98,12 +150,10 @@ export default function AcademyCoaching() {
   const [academies, setAcademies] = useState<Academy[]>([]);
   const [selectedAcademyId, setSelectedAcademyId] = useState('');
   const [selectedSport, setSelectedSport] = useState('');
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [refreshing, setRefreshing] = useState(false);
 
-  const dateInputRef = useRef<HTMLInputElement | null>(null);
-
-  const [coachingSessions, setCoachingSessions] = useState<Coaching[]>([]);
+  const [programs, setPrograms] = useState<CoachingProgram[]>([]);
+  const [selectedProgram, setSelectedProgram] = useState<CoachingProgram | null>(null);
   const [selectedCoaching, setSelectedCoaching] = useState<Coaching | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -111,6 +161,7 @@ export default function AcademyCoaching() {
   const [shareUrl, setShareUrl] = useState('');
 
   const [form, setForm] = useState({
+    startDate: format(new Date(), 'yyyy-MM-dd'),
     courtNumber: '',
     title: '',
     description: '',
@@ -133,22 +184,43 @@ export default function AcademyCoaching() {
     ? Array.from({ length: selectedSportConfig.numberOfCourts }, (_v, i) => i + 1)
     : [];
 
-  const fetchCoaching = async (baseDate: Date = selectedDate) => {
+  const [editOpen, setEditOpen] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editScope, setEditScope] = useState<'single' | 'future'>('single');
+  const [editingProgram, setEditingProgram] = useState<CoachingProgram | null>(null);
+  const [editForm, setEditForm] = useState({
+    startDate: '',
+    courtNumber: '',
+    title: '',
+    description: '',
+    skillLevel: '',
+    coachName: '',
+    coachBio: '',
+    coachContact: '',
+    startTime: '',
+    endTime: '',
+    pricePerParticipant: '0',
+    recurrenceType: 'none' as 'none' | 'daily' | 'weekly',
+    recurrenceDays: [] as number[],
+    recurrenceUntil: '',
+  });
+
+  const editCourts = useMemo(() => {
+    if (!editingProgram) return courts;
+    const sport = sports.find((s) => s.sportName === editingProgram.sport);
+    return sport ? Array.from({ length: sport.numberOfCourts }, (_, i) => i + 1) : courts;
+  }, [sports, editingProgram, courts]);
+
+  const fetchPrograms = async () => {
     if (!selectedAcademyId) return;
     try {
-      const startDate = format(subDays(baseDate, 1), 'yyyy-MM-dd');
-      const endDate = format(addDays(baseDate, 1), 'yyyy-MM-dd');
-      const res = await axios.get(`/api/coaching/academy/${selectedAcademyId}`, {
-        params: {
-          startDate,
-          endDate,
-          sport: selectedSport || undefined,
-        },
+      const res = await axios.get(`/api/coaching/academy/${selectedAcademyId}/programs`, {
+        params: { sport: selectedSport || undefined },
       });
-      setCoachingSessions(res.data?.coachingSessions || []);
+      setPrograms(res.data?.programs || []);
     } catch (error) {
-      console.error('Failed to fetch coaching sessions', error);
-      setCoachingSessions([]);
+      console.error('Failed to fetch coaching programs', error);
+      setPrograms([]);
     }
   };
 
@@ -180,32 +252,13 @@ export default function AcademyCoaching() {
   }, [academies, selectedAcademyId, selectedSport]);
 
   useEffect(() => {
-    void fetchCoaching();
-  }, [selectedAcademyId, selectedSport, selectedDate]);
+    void fetchPrograms();
+  }, [selectedAcademyId, selectedSport]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchCoaching();
+    await fetchPrograms();
     setRefreshing(false);
-  };
-
-  const goToToday = async () => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
-    setSelectedDate(today);
-    setRefreshing(true);
-    await fetchCoaching(today);
-    setRefreshing(false);
-  };
-
-  const openDatePicker = () => {
-    const input = dateInputRef.current;
-    if (!input) return;
-    if (typeof input.showPicker === 'function') {
-      input.showPicker();
-      return;
-    }
-    input.focus();
   };
 
   const handleLogout = () => {
@@ -216,6 +269,7 @@ export default function AcademyCoaching() {
 
   const resetForm = () => {
     setForm({
+      startDate: format(new Date(), 'yyyy-MM-dd'),
       courtNumber: '',
       title: '',
       description: '',
@@ -233,8 +287,8 @@ export default function AcademyCoaching() {
   };
 
   const handleCreate = async () => {
-    if (!selectedAcademyId || !selectedSport || !form.courtNumber || !form.startTime || !form.endTime) {
-      toast({ title: 'Please fill academy, sport, court and timeslot fields', variant: 'destructive' });
+    if (!selectedAcademyId || !selectedSport || !form.courtNumber || !form.startTime || !form.endTime || !form.startDate) {
+      toast({ title: 'Please fill academy, sport, court, date and timeslot fields', variant: 'destructive' });
       return;
     }
 
@@ -260,7 +314,7 @@ export default function AcademyCoaching() {
         coachName: form.coachName,
         coachBio: form.coachBio,
         coachContact: form.coachContact,
-        date: format(selectedDate, 'yyyy-MM-dd'),
+        date: form.startDate,
         startTime: form.startTime,
         endTime: form.endTime,
         pricePerParticipant: Number(form.pricePerParticipant || '0'),
@@ -271,30 +325,31 @@ export default function AcademyCoaching() {
       if (form.recurrenceType !== 'none') payload.recurrenceUntil = form.recurrenceUntil;
 
       const res = await axios.post('/api/coaching/create', payload);
-      toast({ title: res.data?.message || 'Coaching classes created' });
+      toast({ title: res.data?.message || 'Coaching program created' });
       setCreateOpen(false);
       resetForm();
-      await fetchCoaching();
-    } catch (error: any) {
-      toast({ title: error?.response?.data?.message || 'Failed to create coaching classes', variant: 'destructive' });
+      await fetchPrograms();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      toast({ title: err?.response?.data?.message || 'Failed to create coaching program', variant: 'destructive' });
     } finally {
       setCreating(false);
     }
   };
 
-  const openCoachingDetails = async (coachingId: string) => {
+  const openSessionDetails = async (sessionId: string) => {
     try {
       const [detailRes, shareRes] = await Promise.all([
-        axios.get(`/api/coaching/${coachingId}`),
-        axios.get(`/api/coaching/${coachingId}/share-link`),
+        axios.get(`/api/coaching/${sessionId}`),
+        axios.get(`/api/coaching/${sessionId}/share-link`),
       ]);
 
       setSelectedCoaching(detailRes.data?.coaching || null);
       const code = shareRes.data?.shareCode;
       setShareUrl(code ? `${window.location.origin}/coaching/share/${code}` : '');
     } catch (error) {
-      console.error('Failed to load coaching details', error);
-      toast({ title: 'Failed to load coaching details', variant: 'destructive' });
+      console.error('Failed to load session details', error);
+      toast({ title: 'Failed to load session details', variant: 'destructive' });
     }
   };
 
@@ -312,7 +367,7 @@ export default function AcademyCoaching() {
     try {
       const res = await axios.get(`/api/coaching/${coachingId}`);
       setSelectedCoaching(res.data?.coaching || null);
-      await fetchCoaching();
+      await fetchPrograms();
     } catch (error) {
       console.error('Failed to refresh coaching details', error);
     }
@@ -324,8 +379,9 @@ export default function AcademyCoaching() {
       const res = await axios.post(`/api/coaching/${selectedCoaching._id}/approve/${participantId}`);
       toast({ title: res.data?.message || 'Participant approved' });
       await refreshSelectedCoaching(selectedCoaching._id);
-    } catch (error: any) {
-      toast({ title: error?.response?.data?.message || 'Failed to approve participant', variant: 'destructive' });
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      toast({ title: err?.response?.data?.message || 'Failed to approve participant', variant: 'destructive' });
     }
   };
 
@@ -335,8 +391,9 @@ export default function AcademyCoaching() {
       const res = await axios.post(`/api/coaching/${selectedCoaching._id}/reject/${participantId}`);
       toast({ title: res.data?.message || 'Participant updated' });
       await refreshSelectedCoaching(selectedCoaching._id);
-    } catch (error: any) {
-      toast({ title: error?.response?.data?.message || 'Failed to update participant', variant: 'destructive' });
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      toast({ title: err?.response?.data?.message || 'Failed to update participant', variant: 'destructive' });
     }
   };
 
@@ -344,11 +401,13 @@ export default function AcademyCoaching() {
     if (!selectedCoaching) return;
     try {
       const res = await axios.delete(`/api/coaching/${selectedCoaching._id}`);
-      toast({ title: res.data?.message || 'Coaching class cancelled' });
+      toast({ title: res.data?.message || 'Session cancelled' });
       setSelectedCoaching(null);
-      await fetchCoaching();
-    } catch (error: any) {
-      toast({ title: error?.response?.data?.message || 'Failed to cancel coaching class', variant: 'destructive' });
+      setShareUrl('');
+      await fetchPrograms();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      toast({ title: err?.response?.data?.message || 'Failed to cancel session', variant: 'destructive' });
     }
   };
 
@@ -356,15 +415,162 @@ export default function AcademyCoaching() {
     if (!selectedCoaching?.seriesId) return;
     try {
       const res = await axios.delete(`/api/coaching/series/${selectedCoaching.seriesId}/from/${selectedCoaching.date}`);
-      toast({ title: res.data?.message || 'Future coaching classes cancelled' });
+      toast({ title: res.data?.message || 'Future sessions cancelled' });
       setSelectedCoaching(null);
-      await fetchCoaching();
-    } catch (error: any) {
-      toast({ title: error?.response?.data?.message || 'Failed to cancel coaching series', variant: 'destructive' });
+      setShareUrl('');
+      setSelectedProgram(null);
+      await fetchPrograms();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      toast({ title: err?.response?.data?.message || 'Failed to cancel series', variant: 'destructive' });
     }
   };
 
-  const coachingForDay = coachingSessions.filter((session) => session.date === format(selectedDate, 'yyyy-MM-dd'));
+  const [removingParticipant, setRemovingParticipant] = useState<string | null>(null);
+  const [approvingParticipant, setApprovingParticipant] = useState<string | null>(null);
+
+  const handleViewParticipantProfile = (participantId: string) => {
+    const token = encodeURIComponent(JSON.stringify(participantId));
+    navigate(`/public/profile/${token}`);
+  };
+
+  const handleProgramApprove = async (sessionId: string, participantId: string) => {
+    setApprovingParticipant(participantId);
+    try {
+      const res = await axios.post(`/api/coaching/${sessionId}/approve/${participantId}`);
+      toast({ title: res.data?.message || 'Participant approved' });
+      const updated = await axios.get(`/api/coaching/academy/${selectedAcademyId}/programs`, {
+        params: { sport: selectedSport || undefined },
+      });
+      const list: CoachingProgram[] = updated.data?.programs || [];
+      setPrograms(list);
+      setSelectedProgram((prev) => prev ? (list.find((p) => p.programKey === prev.programKey) ?? prev) : prev);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      toast({ title: err?.response?.data?.message || 'Failed to approve participant', variant: 'destructive' });
+    } finally {
+      setApprovingParticipant(null);
+    }
+  };
+
+  const handleProgramReject = async (sessionId: string, participantId: string) => {
+    setRemovingParticipant(participantId);
+    try {
+      const res = await axios.post(`/api/coaching/${sessionId}/reject/${participantId}`);
+      toast({ title: res.data?.message || 'Participant updated' });
+      const updated = await axios.get(`/api/coaching/academy/${selectedAcademyId}/programs`, {
+        params: { sport: selectedSport || undefined },
+      });
+      const list: CoachingProgram[] = updated.data?.programs || [];
+      setPrograms(list);
+      setSelectedProgram((prev) => prev ? (list.find((p) => p.programKey === prev.programKey) ?? prev) : prev);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      toast({ title: err?.response?.data?.message || 'Failed to update participant', variant: 'destructive' });
+    } finally {
+      setRemovingParticipant(null);
+    }
+  };
+
+  const openEditDialog = () => {
+    if (!selectedProgram) return;
+    setEditingProgram(selectedProgram);
+    setSelectedProgram(null);
+    setEditScope('single');
+    setEditForm({
+      startDate: selectedProgram.firstDate,
+      courtNumber: String(selectedProgram.courtNumber),
+      title: selectedProgram.title || '',
+      description: selectedProgram.description || '',
+      skillLevel: selectedProgram.skillLevel || '',
+      coachName: selectedProgram.coachName || '',
+      coachBio: selectedProgram.coachBio || '',
+      coachContact: selectedProgram.coachContact || '',
+      startTime: selectedProgram.startTime,
+      endTime: selectedProgram.endTime,
+      pricePerParticipant: String(selectedProgram.pricePerParticipant ?? 0),
+      recurrenceType: selectedProgram.recurrenceType,
+      recurrenceDays: selectedProgram.recurrenceDays || [],
+      recurrenceUntil: selectedProgram.recurrenceUntil || '',
+    });
+    setEditOpen(true);
+  };
+
+  const handleUpdateProgram = async () => {
+    if (!editingProgram) return;
+    if (!editForm.courtNumber || !editForm.startDate || !editForm.startTime || !editForm.endTime) {
+      toast({ title: 'Please fill all required fields', variant: 'destructive' });
+      return;
+    }
+    if (editScope === 'future' && editForm.recurrenceType === 'weekly' && editForm.recurrenceDays.length === 0) {
+      toast({ title: 'Select recurrence days for weekly updates', variant: 'destructive' });
+      return;
+    }
+    if (editScope === 'future' && editForm.recurrenceType !== 'none' && !editForm.recurrenceUntil) {
+      toast({ title: 'Select repeat-until date for recurring updates', variant: 'destructive' });
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      const payload: any = {
+        scope: editScope,
+        sport: editingProgram.sport,
+        courtNumber: Number(editForm.courtNumber),
+        date: editForm.startDate,
+        title: editForm.title,
+        description: editForm.description,
+        skillLevel: editForm.skillLevel,
+        coachName: editForm.coachName,
+        coachBio: editForm.coachBio,
+        coachContact: editForm.coachContact,
+        startTime: editForm.startTime,
+        endTime: editForm.endTime,
+        pricePerParticipant: Number(editForm.pricePerParticipant) || 0,
+      };
+      if (editScope === 'future') {
+        payload.recurrenceType = editForm.recurrenceType;
+        payload.recurrenceDays = editForm.recurrenceType === 'weekly' ? editForm.recurrenceDays : [];
+        payload.recurrenceUntil = editForm.recurrenceType === 'none' ? null : editForm.recurrenceUntil;
+      }
+      const res = await axios.put(`/api/coaching/${editingProgram.representativeId}`, payload);
+      toast({ title: res.data?.message || 'Program updated successfully' });
+      setEditOpen(false);
+      setEditingProgram(null);
+      await fetchPrograms();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      toast({ title: err?.response?.data?.message || 'Failed to update program', variant: 'destructive' });
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const cancelEntireProgram = async (program: CoachingProgram) => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    try {
+      if (program.seriesId) {
+        const res = await axios.delete(`/api/coaching/series/${program.seriesId}/from/${today}`);
+        toast({ title: res.data?.message || 'Upcoming sessions cancelled' });
+      } else {
+        // For a standalone session, only cancel if it hasn't happened yet
+        if (program.firstDate >= today) {
+          const res = await axios.delete(`/api/coaching/${program.representativeId}`);
+          toast({ title: res.data?.message || 'Session cancelled' });
+        } else {
+          toast({ title: 'No upcoming sessions to cancel' });
+          return;
+        }
+      }
+      setSelectedProgram(null);
+      await fetchPrograms();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      toast({ title: err?.response?.data?.message || 'Failed to cancel upcoming sessions', variant: 'destructive' });
+    }
+  };
+
+  const totalEnrolled = programs.reduce((sum, p) => sum + p.joinedCount, 0);
+  const totalPending = programs.reduce((sum, p) => sum + p.pendingCount, 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
@@ -373,8 +579,8 @@ export default function AcademyCoaching() {
       <div className="container mx-auto px-3 md:px-4 py-8 md:py-12 max-w-[96vw] 2xl:max-w-[1700px]">
         <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-slate-800 mb-2">Coaching Sessions</h1>
-            <p className="text-slate-500 text-lg">Create and manage coaching classes with recurring schedules and participant approvals.</p>
+            <h1 className="text-3xl md:text-4xl font-bold text-slate-800 mb-2">Coaching Programs</h1>
+            <p className="text-slate-500 text-lg">Manage your coaching schedules, recurring programs and participant approvals.</p>
           </div>
           <div className="flex gap-3 shrink-0 flex-wrap">
             <Button variant="outline" asChild>
@@ -386,13 +592,13 @@ export default function AcademyCoaching() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-3 gap-4 mb-8">
           <Card className="border-slate-200">
             <CardContent className="flex items-center gap-4 p-5">
               <div className="p-3 rounded-xl bg-amber-100"><Calendar className="h-5 w-5 text-amber-700" /></div>
               <div>
-                <p className="text-xs text-slate-500">Classes Today</p>
-                <p className="text-2xl font-bold text-slate-800">{coachingForDay.length}</p>
+                <p className="text-xs text-slate-500">Active Programs</p>
+                <p className="text-2xl font-bold text-slate-800">{programs.length}</p>
               </div>
             </CardContent>
           </Card>
@@ -400,10 +606,8 @@ export default function AcademyCoaching() {
             <CardContent className="flex items-center gap-4 p-5">
               <div className="p-3 rounded-xl bg-blue-100"><Users className="h-5 w-5 text-blue-600" /></div>
               <div>
-                <p className="text-xs text-slate-500">Joined Today</p>
-                <p className="text-2xl font-bold text-slate-800">
-                  {coachingForDay.reduce((sum, session) => sum + (session.joinedParticipants?.length ?? 0), 0)}
-                </p>
+                <p className="text-xs text-slate-500">Total Enrolled</p>
+                <p className="text-2xl font-bold text-slate-800">{totalEnrolled}</p>
               </div>
             </CardContent>
           </Card>
@@ -411,10 +615,8 @@ export default function AcademyCoaching() {
             <CardContent className="flex items-center gap-4 p-5">
               <div className="p-3 rounded-xl bg-red-100"><Clock className="h-5 w-5 text-red-600" /></div>
               <div>
-                <p className="text-xs text-slate-500">Pending Requests</p>
-                <p className="text-2xl font-bold text-slate-800">
-                  {coachingForDay.reduce((sum, session) => sum + (session.pendingRequests?.length ?? 0), 0)}
-                </p>
+                <p className="text-xs text-slate-500">Pending Approvals</p>
+                <p className="text-2xl font-bold text-slate-800">{totalPending}</p>
               </div>
             </CardContent>
           </Card>
@@ -424,8 +626,8 @@ export default function AcademyCoaching() {
           <CardHeader className="bg-gradient-to-r from-slate-50 to-white border-b space-y-4">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div>
-                <CardTitle className="text-xl text-slate-800">Session List</CardTitle>
-                <CardDescription>Select academy, sport, and date to manage coaching classes.</CardDescription>
+                <CardTitle className="text-xl text-slate-800">Programs</CardTitle>
+                <CardDescription>All coaching programs and recurring schedules.</CardDescription>
               </div>
             </div>
 
@@ -468,36 +670,9 @@ export default function AcademyCoaching() {
             )}
 
             <div className="flex items-center gap-3 flex-wrap">
-              <Button variant="outline" size="sm" onClick={() => setSelectedDate((d) => subDays(d, 1))}>
-                <ArrowLeft className="h-4 w-4 mr-1" /> Prev
-              </Button>
-              <div
-                className="relative h-10 min-w-[160px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm cursor-pointer"
-                onClick={openDatePicker}
-              >
-                <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-slate-800">
-                  {format(selectedDate, 'yyyy-MM-dd')}
-                </span>
-                <input
-                  ref={dateInputRef}
-                  type="date"
-                  value={format(selectedDate, 'yyyy-MM-dd')}
-                  onChange={(e) => {
-                    const [y, m, d] = (e.target.value || '').split('-').map(Number);
-                    if (y && m && d) setSelectedDate(new Date(y, m - 1, d, 12));
-                  }}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                />
-              </div>
-              <Button variant="outline" size="sm" onClick={() => setSelectedDate((d) => addDays(d, 1))}>
-                Next <ArrowRight className="h-4 w-4 ml-1" />
-              </Button>
-              <Button variant="outline" size="sm" onClick={goToToday}>
-                Today
-              </Button>
               <Button size="sm" onClick={() => setCreateOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white">
                 <PlusCircle className="h-4 w-4 mr-1" />
-                New Coaching
+                New Program
               </Button>
               <Button size="sm" onClick={onRefresh} disabled={refreshing} className="bg-blue-600 text-white hover:bg-blue-700">
                 <RefreshCw className={`h-4 w-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
@@ -507,10 +682,10 @@ export default function AcademyCoaching() {
           </CardHeader>
 
           <CardContent className="p-4 md:p-6">
-            {coachingForDay.length === 0 ? (
+            {programs.length === 0 ? (
               <div className="text-center py-16 text-slate-500">
                 <Calendar className="h-12 w-12 mx-auto mb-4 text-slate-300" />
-                <p className="text-lg font-medium">No coaching classes on this day.</p>
+                <p className="text-lg font-medium">No coaching programs yet.</p>
                 <p className="text-sm mt-1">
                   Click{' '}
                   <button
@@ -518,54 +693,70 @@ export default function AcademyCoaching() {
                     className="font-semibold text-amber-600 hover:text-amber-700"
                     onClick={() => setCreateOpen(true)}
                   >
-                    New Coaching
+                    New Program
                   </button>{' '}
                   to create one.
                 </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {coachingForDay.map((session) => (
-                  <motion.div key={session._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                {programs.map((program) => (
+                  <motion.div key={program.programKey} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                     <Card
                       className="border-amber-200 hover:shadow-md transition-shadow cursor-pointer"
-                      onClick={() => {
-                        void openCoachingDetails(session._id);
-                      }}
+                      onClick={() => setSelectedProgram(program)}
                     >
                       <CardContent className="p-5 space-y-3">
                         <div className="flex items-center justify-between">
-                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Coaching</Badge>
-                          {session.recurrenceType !== 'none' && (
-                            <Badge variant="outline" className="capitalize">{session.recurrenceType}</Badge>
+                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+                            {capitalizeWords(program.sport)}
+                          </Badge>
+                          {program.recurrenceType !== 'none' ? (
+                            <Badge variant="outline" className="capitalize">{program.recurrenceType}</Badge>
+                          ) : (
+                            <Badge variant="outline">One-time</Badge>
                           )}
                         </div>
 
                         <div>
                           <h3 className="font-semibold text-slate-800 truncate">
-                            {session.title || capitalizeWords(session.sport)}
+                            {program.title || capitalizeWords(program.sport)}
                           </h3>
-                          <p className="text-xs text-slate-500 mt-0.5">Court {session.courtNumber} · {capitalizeWords(session.sport)}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">Court {program.courtNumber}</p>
                         </div>
 
                         <div className="flex items-center gap-2 text-sm text-slate-600">
-                          <Clock className="h-4 w-4 text-slate-400" />
-                          {session.startTime} - {session.endTime}
+                          <Clock className="h-4 w-4 text-slate-400 shrink-0" />
+                          <span className="truncate">{getScheduleDescription(program)}</span>
+                        </div>
+
+                        <div className="text-xs text-slate-500">
+                          <Calendar className="h-3.5 w-3.5 inline mr-1" />
+                          {program.firstDate}
+                          {program.lastDate !== program.firstDate && ` → ${program.lastDate}`}
                         </div>
 
                         <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center gap-1 text-slate-600">
+                          <div className="flex items-center gap-2 text-slate-600">
                             <Users className="h-4 w-4 text-slate-400" />
-                            {session.joinedParticipants?.length || 0} joined
+                            <span>{program.joinedCount} enrolled</span>
+                            <span className="text-slate-300">·</span>
+                            <span>{program.totalSessions} {program.totalSessions === 1 ? 'session' : 'sessions'}</span>
                           </div>
                           <span className="font-semibold text-amber-700">
-                            {session.pricePerParticipant > 0 ? `₹${session.pricePerParticipant}` : 'Free'}
+                            {program.pricePerParticipant > 0 ? `₹${program.pricePerParticipant}` : 'Free'}
                           </span>
                         </div>
 
-                        {(session.pendingRequests?.length || 0) > 0 && (
+                        {program.pendingCount > 0 && (
                           <div className="text-xs text-red-600 font-medium">
-                            {session.pendingRequests.length} pending approval
+                            {program.pendingCount} pending approval
+                          </div>
+                        )}
+
+                        {program.coachName && (
+                          <div className="text-xs text-slate-500 truncate">
+                            Coach: {program.coachName}
                           </div>
                         )}
                       </CardContent>
@@ -578,13 +769,22 @@ export default function AcademyCoaching() {
         </Card>
       </div>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      {/* ── Create Program Dialog ─────────────────────────────────────────── */}
+      <Dialog open={createOpen} onOpenChange={(open) => { if (!open) resetForm(); setCreateOpen(open); }}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Create Coaching Class</DialogTitle>
+            <DialogTitle>Create Coaching Program</DialogTitle>
           </DialogHeader>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <Label>Start Date</Label>
+              <Input
+                type="date"
+                value={form.startDate}
+                onChange={(e) => setForm((prev) => ({ ...prev, startDate: e.target.value }))}
+              />
+            </div>
             <div>
               <Label>Court</Label>
               <select
@@ -712,7 +912,7 @@ export default function AcademyCoaching() {
       <Dialog open={!!selectedCoaching} onOpenChange={(open) => { if (!open) { setSelectedCoaching(null); setShareUrl(''); } }}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{selectedCoaching?.title || 'Coaching Details'}</DialogTitle>
+            <DialogTitle>{selectedCoaching?.title || 'Session Details'}</DialogTitle>
           </DialogHeader>
 
           {selectedCoaching && (
@@ -721,7 +921,7 @@ export default function AcademyCoaching() {
                 <div><strong>Sport:</strong> {capitalizeWords(selectedCoaching.sport)}</div>
                 <div><strong>Court:</strong> {selectedCoaching.courtNumber}</div>
                 <div><strong>Date:</strong> {selectedCoaching.date}</div>
-                <div><strong>Time:</strong> {selectedCoaching.startTime} - {selectedCoaching.endTime}</div>
+                <div><strong>Time:</strong> {selectedCoaching.startTime} – {selectedCoaching.endTime}</div>
                 <div><strong>Fee:</strong> {selectedCoaching.pricePerParticipant > 0 ? `₹${selectedCoaching.pricePerParticipant} / participant` : 'Free'}</div>
                 <div><strong>Joined:</strong> {selectedCoaching.joinedParticipants?.length || 0}</div>
               </div>
@@ -798,7 +998,7 @@ export default function AcademyCoaching() {
                 <p className="font-semibold text-slate-900 mb-2">Cancel</p>
                 <div className="flex gap-2 flex-wrap">
                   <Button variant="outline" className="text-red-700 border-red-300" onClick={() => void cancelSingle()}>
-                    <Trash2 className="h-4 w-4 mr-1" /> Cancel This Class
+                    <Trash2 className="h-4 w-4 mr-1" /> Cancel This Session
                   </Button>
                   {selectedCoaching.seriesId && (
                     <Button variant="outline" className="text-red-700 border-red-300" onClick={() => void cancelSeries()}>
@@ -809,6 +1009,398 @@ export default function AcademyCoaching() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Program Detail Dialog ─────────────────────────────────────────── */}
+      <Dialog
+        open={!!selectedProgram && !selectedCoaching}
+        onOpenChange={(open) => { if (!open) setSelectedProgram(null); }}
+      >
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          {selectedProgram && (
+            <DialogHeader>
+              <DialogTitle>{selectedProgram.title || 'Program Details'}</DialogTitle>
+              <DialogDescription>
+                Court {selectedProgram.courtNumber} · {getScheduleDescription(selectedProgram)}
+              </DialogDescription>
+            </DialogHeader>
+          )}
+
+          {selectedProgram && (
+            <div className="space-y-4 text-sm text-slate-700">
+              <div className="grid grid-cols-2 gap-2">
+                <div><strong>Sport:</strong> {capitalizeWords(selectedProgram.sport)}</div>
+                <div><strong>Court:</strong> {selectedProgram.courtNumber}</div>
+                <div className="col-span-2"><strong>Schedule:</strong> {getScheduleDescription(selectedProgram)}</div>
+                <div><strong>Starts:</strong> {selectedProgram.firstDate}</div>
+                <div><strong>Until:</strong> {selectedProgram.recurrenceUntil || selectedProgram.lastDate}</div>
+                <div><strong>Sessions:</strong> {selectedProgram.totalSessions}</div>
+                <div>
+                  <strong>Enrolled:</strong>{' '}
+                  <span className="inline-flex items-center gap-1">
+                    <span className="font-semibold text-emerald-700">{getUniquePlayers(selectedProgram).length}</span>
+                    <span className="text-slate-400">players</span>
+                  </span>
+                </div>
+                <div><strong>Fee:</strong> {selectedProgram.pricePerParticipant > 0 ? `₹${selectedProgram.pricePerParticipant} / participant` : 'Free'}</div>
+                {selectedProgram.skillLevel && <div><strong>Skill Level:</strong> {selectedProgram.skillLevel}</div>}
+              </div>
+
+              {selectedProgram.description && (
+                <div>
+                  <strong>Description:</strong>
+                  <p className="mt-1 text-slate-600">{selectedProgram.description}</p>
+                </div>
+              )}
+
+              {(selectedProgram.coachName || selectedProgram.coachBio || selectedProgram.coachContact) && (
+                <div className="rounded-lg border p-3 bg-slate-50">
+                  <p className="font-semibold text-slate-900">Coach Details</p>
+                  {selectedProgram.coachName && <p><strong>Name:</strong> {selectedProgram.coachName}</p>}
+                  {selectedProgram.coachContact && <p><strong>Contact:</strong> {selectedProgram.coachContact}</p>}
+                  {selectedProgram.coachBio && <p className="mt-1 text-slate-600">{selectedProgram.coachBio}</p>}
+                </div>
+              )}
+
+              {(() => {
+                const pendingBySession = selectedProgram.sessions
+                  .filter((s) => s.pendingRequests.length > 0)
+                  .flatMap((s) => s.pendingRequests.map((p) => ({ ...p, sessionId: s._id })));
+                const seenPending = new Set<string>();
+                const uniquePending = pendingBySession.filter((p) => {
+                  if (seenPending.has(p._id)) return false;
+                  seenPending.add(p._id);
+                  return true;
+                });
+                return uniquePending.length > 0 ? (
+                  <div>
+                    <p className="font-semibold text-slate-900 mb-2">Pending Approvals ({uniquePending.length})</p>
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                      {uniquePending.map((p) => (
+                        <div key={p._id} className="px-2 py-2 rounded bg-amber-50 border border-amber-100 flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{capitalizeWords(p.name)}</p>
+                            {p.email && <p className="text-xs text-slate-500 truncate">{p.email}</p>}
+                          </div>
+                          <div className="flex gap-2 shrink-0">
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleViewParticipantProfile(p._id)}>View Profile</Button>
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                              disabled={approvingParticipant === p._id}
+                              onClick={() => void handleProgramApprove(p.sessionId, p._id)}
+                            >
+                              {approvingParticipant === p._id ? '…' : 'Approve'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs text-red-600 border-red-200"
+                              disabled={removingParticipant === p._id}
+                              onClick={() => void handleProgramReject(p.sessionId, p._id)}
+                            >
+                              {removingParticipant === p._id ? '…' : 'Reject'}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+
+              {(() => {
+                const uniquePlayers = getUniquePlayers(selectedProgram);
+                return (
+                  <div>
+                    <p className="font-semibold text-slate-900 mb-2">Enrolled Players ({uniquePlayers.length})</p>
+                    {uniquePlayers.length === 0 ? (
+                      <p className="text-sm text-slate-400 italic">No participants have joined yet.</p>
+                    ) : (
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                        {uniquePlayers.map((p) => (
+                          <div key={p._id} className="px-2 py-2 rounded bg-emerald-50 border border-emerald-100 flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">{capitalizeWords(p.name)}</p>
+                              {p.email && <p className="text-xs text-slate-500 truncate">{p.email}</p>}
+                            </div>
+                            <div className="flex gap-2 shrink-0">
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleViewParticipantProfile(p._id)}>View Profile</Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {selectedProgram.sessions.length > 0 && (
+                <div>
+                  <p className="font-semibold text-slate-900 mb-2">
+                    Sessions ({selectedProgram.sessions.length})
+                  </p>
+                  <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                    {selectedProgram.sessions.map((session) => (
+                      <div
+                        key={session._id}
+                        className="rounded border bg-slate-50 px-3 py-2 flex items-center justify-between gap-2"
+                      >
+                        <span className="font-medium text-sm">{session.date}</span>
+                        {session.pendingRequests.length > 0 && (
+                          <span className="text-red-600 text-xs font-medium">{session.pendingRequests.length} pending</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-2 border-t">
+                <p className="font-semibold text-slate-900 mb-2">Cancel Upcoming Sessions</p>
+                <p className="text-xs text-slate-500 mb-2">Past sessions will not be affected.</p>
+                <Button
+                  variant="outline"
+                  className="text-red-700 border-red-300"
+                  onClick={() => void cancelEntireProgram(selectedProgram)}
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Cancel Upcoming Sessions
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={openEditDialog}>
+              <Pencil className="h-4 w-4 mr-1" /> Edit
+            </Button>
+            <Button variant="outline" onClick={() => setSelectedProgram(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Edit Program Dialog ───────────────────────────────────────────── */}
+      <Dialog
+        open={editOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditOpen(false);
+            if (editingProgram) setSelectedProgram(editingProgram);
+            setEditingProgram(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Coaching Program</DialogTitle>
+            <DialogDescription>Update details for this program. Changes can apply to this session only or this and all future sessions.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {editingProgram?.seriesId && (
+              <div>
+                <Label>Apply Changes To</Label>
+                <Select value={editScope} onValueChange={(v) => setEditScope(v as 'single' | 'future')}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="single">This occurrence only</SelectItem>
+                    <SelectItem value="future">This and future occurrences</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Date *</Label>
+                <Input
+                  type="date"
+                  className="mt-1"
+                  value={editForm.startDate}
+                  onChange={(e) => setEditForm((f) => ({ ...f, startDate: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Court *</Label>
+                <Select value={editForm.courtNumber} onValueChange={(v) => setEditForm((f) => ({ ...f, courtNumber: v }))}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select court" /></SelectTrigger>
+                  <SelectContent>
+                    {editCourts.map((c) => <SelectItem key={c} value={String(c)}>Court {c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Start Time *</Label>
+                <Input
+                  type="time"
+                  className="mt-1"
+                  value={editForm.startTime}
+                  onChange={(e) => setEditForm((f) => ({ ...f, startTime: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>End Time *</Label>
+                <Input
+                  type="time"
+                  className="mt-1"
+                  value={editForm.endTime}
+                  onChange={(e) => setEditForm((f) => ({ ...f, endTime: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label>Skill Level</Label>
+              <Select
+                value={editForm.skillLevel || '__any__'}
+                onValueChange={(v) => setEditForm((f) => ({ ...f, skillLevel: v === '__any__' ? '' : v }))}
+              >
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Any level" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__any__">Any level</SelectItem>
+                  {SKILL_LEVELS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Class Title</Label>
+              <Input
+                className="mt-1"
+                value={editForm.title}
+                onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
+                placeholder="Morning Advanced Drills"
+              />
+            </div>
+
+            <div>
+              <Label>Description</Label>
+              <Textarea
+                className="mt-1"
+                rows={2}
+                value={editForm.description}
+                onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+
+            <div>
+              <Label>Price / Participant (₹)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                className="mt-1"
+                value={editForm.pricePerParticipant}
+                onChange={(e) => setEditForm((f) => ({ ...f, pricePerParticipant: e.target.value }))}
+              />
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-slate-800 mb-2">Coach Details (Optional)</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Coach Name</Label>
+                  <Input
+                    className="mt-1"
+                    value={editForm.coachName}
+                    onChange={(e) => setEditForm((f) => ({ ...f, coachName: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label>Coach Contact</Label>
+                  <Input
+                    className="mt-1"
+                    value={editForm.coachContact}
+                    onChange={(e) => setEditForm((f) => ({ ...f, coachContact: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="mt-3">
+                <Label>Coach Bio</Label>
+                <Textarea
+                  className="mt-1"
+                  rows={2}
+                  value={editForm.coachBio}
+                  onChange={(e) => setEditForm((f) => ({ ...f, coachBio: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {editScope === 'future' && (
+              <>
+                <div>
+                  <Label>Recurrence</Label>
+                  <Select
+                    value={editForm.recurrenceType}
+                    onValueChange={(v) => setEditForm((f) => ({
+                      ...f,
+                      recurrenceType: v as 'none' | 'daily' | 'weekly',
+                      recurrenceDays: v === 'weekly' ? f.recurrenceDays : [],
+                      recurrenceUntil: v === 'none' ? '' : f.recurrenceUntil,
+                    }))}
+                  >
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">One-time only</SelectItem>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly (select days)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {editForm.recurrenceType === 'weekly' && (
+                  <div>
+                    <Label>Days of Week *</Label>
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      {DAYS_OF_WEEK.map((day) => {
+                        const active = editForm.recurrenceDays.includes(day.value);
+                        return (
+                          <button
+                            key={day.value}
+                            type="button"
+                            onClick={() => setEditForm((f) => ({
+                              ...f,
+                              recurrenceDays: active
+                                ? f.recurrenceDays.filter((d) => d !== day.value)
+                                : [...f.recurrenceDays, day.value],
+                            }))}
+                            className={`px-3 py-1 rounded-full text-sm border transition-colors ${active ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-slate-700 border-slate-300 hover:border-amber-400'}`}
+                          >
+                            {day.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {editForm.recurrenceType !== 'none' && (
+                  <div>
+                    <Label>Repeat Until *</Label>
+                    <Input
+                      type="date"
+                      className="mt-1"
+                      value={editForm.recurrenceUntil}
+                      min={editForm.startDate}
+                      onChange={(e) => setEditForm((f) => ({ ...f, recurrenceUntil: e.target.value }))}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setEditOpen(false); if (editingProgram) setSelectedProgram(editingProgram); setEditingProgram(null); }}>Cancel</Button>
+            <Button className="bg-amber-600 hover:bg-amber-700 text-white" onClick={() => void handleUpdateProgram()} disabled={savingEdit}>
+              {savingEdit ? 'Saving…' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
