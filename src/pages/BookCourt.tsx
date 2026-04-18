@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
   Card,
@@ -31,13 +31,37 @@ import Slider from "react-slider";
 import { capitalizeWords, combineLocalDateAndTime, localDateTimeToUtcParts } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Navbar } from "@/components/layout";
-import { Calendar, Clock3, MapPin, Search, Building2 } from "lucide-react";
+import { Calendar, Clock3, MapPin, Search, Building2, Heart } from "lucide-react";
+
+type AcademyItem = {
+  _id: string;
+  name: string;
+  address?: string;
+  city?: string;
+  mapLink?: string;
+  shareCode?: string;
+  sports: Array<{
+    sportName: string;
+    startTime: string;
+    endTime: string;
+    numberOfCourts: number;
+  }>;
+};
+
+type GeoPoint = {
+  lat: number;
+  lng: number;
+};
+
+const BOOK_COURT_FILTERS_STORAGE_KEY = "bookcourt.filters";
+const BOOK_COURT_RESULTS_STORAGE_KEY = "bookcourt.results";
 
 export default function BookCourt() {
+  const location = useLocation();
   const [city, setCity] = useState("");
   const [sport, setSport] = useState("");
   const [date, setDate] = useState("");
-  const [academies, setAcademies] = useState([]);
+  const [academies, setAcademies] = useState<AcademyItem[]>([]);
   const [cities, setCities] = useState([]);
   const [sportsList, setSportsList] = useState([]);
   const { toast } = useToast();
@@ -47,7 +71,39 @@ export default function BookCourt() {
   const [modalDuration, setModalDuration] = useState(60);
   const [courts, setCourts] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
+  const [favoriteAcademyIds, setFavoriteAcademyIds] = useState<string[]>([]);
+  const [favoriteLoadingAcademyId, setFavoriteLoadingAcademyId] = useState<string | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<GeoPoint | null>(null);
+  const [distanceByAcademyId, setDistanceByAcademyId] = useState<Record<string, number>>({});
   const navigate = useNavigate();
+
+  const prefills = (location.state || {}) as {
+    city?: string;
+    sport?: string;
+    date?: string;
+  };
+
+  const getAcademyMapHref = (academy: AcademyItem) => {
+    const trimmedMapLink = String(academy?.mapLink || "").trim();
+    if (trimmedMapLink) {
+      const lower = trimmedMapLink.toLowerCase();
+      const isAbsoluteUrl =
+        lower.startsWith("http://") ||
+        lower.startsWith("https://") ||
+        lower.startsWith("www.");
+
+      if (isAbsoluteUrl) {
+        return lower.startsWith("www.") ? `https://${trimmedMapLink}` : trimmedMapLink;
+      }
+
+      // If mapLink is plain text (e.g. venue name), open it as a Google Maps query.
+      return `https://maps.google.com/maps?q=${encodeURIComponent(trimmedMapLink)}`;
+    }
+
+    const fallbackQuery = `${academy?.address || ""} ${academy?.city || ""}`.trim();
+    if (!fallbackQuery) return "https://maps.google.com";
+    return `https://maps.google.com/maps?q=${encodeURIComponent(fallbackQuery)}`;
+  };
 
   /* ================= TIME HELPERS (LOCAL TZ SAFE) ================= */
 
@@ -66,6 +122,35 @@ export default function BookCourt() {
 
   const todayStr = getLocalDateString();
   const isToday = date === todayStr;
+
+  const haversineKm = (from: GeoPoint, to: GeoPoint) => {
+    const toRad = (value: number) => (value * Math.PI) / 180;
+    const earthRadiusKm = 6371;
+    const latDiff = toRad(to.lat - from.lat);
+    const lngDiff = toRad(to.lng - from.lng);
+    const a =
+      Math.sin(latDiff / 2) * Math.sin(latDiff / 2) +
+      Math.cos(toRad(from.lat)) * Math.cos(toRad(to.lat)) *
+      Math.sin(lngDiff / 2) * Math.sin(lngDiff / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return earthRadiusKm * c;
+  };
+
+  const extractCoordinates = (academy: AcademyItem): GeoPoint | null => {
+    const mapLink = String(academy?.mapLink || '');
+    const patterns = [/@(-?\d+\.\d+),(-?\d+\.\d+)/, /[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/, /[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/];
+
+    for (const pattern of patterns) {
+      const match = mapLink.match(pattern);
+      if (!match) continue;
+      const lat = Number(match[1]);
+      const lng = Number(match[2]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      return { lat, lng };
+    }
+
+    return null;
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -88,6 +173,42 @@ export default function BookCourt() {
   }, []);
 
   useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const fetchFavorites = async () => {
+      try {
+        const response = await axios.get('/api/user/favorite-academies', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        setFavoriteAcademyIds(response.data?.favoriteAcademyIds || []);
+      } catch (error) {
+        console.error('Failed to fetch favorite academies', error);
+      }
+    };
+
+    void fetchFavorites();
+  }, []);
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCurrentLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+      },
+      (_error) => {
+        setCurrentLocation(null);
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    );
+  }, []);
+
+  useEffect(() => {
     const fetchSports = async () => {
       if (!city) {
         setSportsList([]);
@@ -98,14 +219,58 @@ export default function BookCourt() {
         const res = await axios.get(
           `/api/academy/sports/${city}`
         );
-        setSportsList(res.data?.sports || []);
-        setSport("");
+        const nextSports = res.data?.sports || [];
+        setSportsList(nextSports);
+        setSport((prevSport) => (nextSports.includes(prevSport) ? prevSport : ""));
       } catch (err) {
         console.error(err);
       }
     };
     fetchSports();
   }, [city]);
+
+  useEffect(() => {
+    let storedFilters: { city?: string; sport?: string; date?: string } = {};
+    try {
+      storedFilters = JSON.parse(sessionStorage.getItem(BOOK_COURT_FILTERS_STORAGE_KEY) || "{}");
+    } catch {
+      storedFilters = {};
+    }
+
+    const nextCity = prefills.city || storedFilters.city || "";
+    const nextSport = prefills.sport || storedFilters.sport || "";
+    const nextDate = prefills.date || storedFilters.date || "";
+
+    if (nextCity) setCity(nextCity);
+    if (nextSport) setSport(nextSport);
+    if (nextDate) setDate(nextDate);
+
+    try {
+      const storedResults = JSON.parse(sessionStorage.getItem(BOOK_COURT_RESULTS_STORAGE_KEY) || "{}");
+      if (Array.isArray(storedResults?.academies)) {
+        setAcademies(storedResults.academies);
+      }
+      if (typeof storedResults?.hasSearched === "boolean") {
+        setHasSearched(storedResults.hasSearched);
+      }
+    } catch {
+      // Ignore invalid session storage payloads.
+    }
+  }, [prefills.city, prefills.date, prefills.sport]);
+
+  useEffect(() => {
+    sessionStorage.setItem(
+      BOOK_COURT_FILTERS_STORAGE_KEY,
+      JSON.stringify({ city, sport, date })
+    );
+  }, [city, sport, date]);
+
+  useEffect(() => {
+    sessionStorage.setItem(
+      BOOK_COURT_RESULTS_STORAGE_KEY,
+      JSON.stringify({ academies, hasSearched })
+    );
+  }, [academies, hasSearched]);
 
   const handleSearch = async () => {
     try {
@@ -119,6 +284,86 @@ export default function BookCourt() {
       setAcademies([]);
     } finally {
       setHasSearched(true);
+    }
+  };
+
+  useEffect(() => {
+    if (prefills.city && prefills.sport && prefills.date && city && sport && date && !hasSearched) {
+      void handleSearch();
+    }
+  }, [city, date, hasSearched, prefills.city, prefills.date, prefills.sport, sport]);
+
+  useEffect(() => {
+    if (!currentLocation || academies.length === 0) {
+      setDistanceByAcademyId({});
+      return;
+    }
+
+    const nextDistances: Record<string, number> = {};
+    academies.forEach((academy) => {
+      const coords = extractCoordinates(academy);
+      if (!coords) {
+        nextDistances[academy._id] = Number.POSITIVE_INFINITY;
+        return;
+      }
+      nextDistances[academy._id] = haversineKm(currentLocation, coords);
+    });
+
+    setDistanceByAcademyId(nextDistances);
+  }, [academies, currentLocation]);
+
+  const sortedAcademies = useMemo(() => {
+    const favoriteSet = new Set(favoriteAcademyIds);
+    return [...academies].sort((a, b) => {
+      const aFavorite = favoriteSet.has(a._id) ? 1 : 0;
+      const bFavorite = favoriteSet.has(b._id) ? 1 : 0;
+      if (aFavorite !== bFavorite) return bFavorite - aFavorite;
+
+      const aDistance = distanceByAcademyId[a._id] ?? Number.POSITIVE_INFINITY;
+      const bDistance = distanceByAcademyId[b._id] ?? Number.POSITIVE_INFINITY;
+      if (aDistance !== bDistance) return aDistance - bDistance;
+
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
+  }, [academies, distanceByAcademyId, favoriteAcademyIds]);
+
+  const handleToggleFavorite = async (academyId: string, event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast({
+        title: 'Login required',
+        description: 'Please login to manage favorites.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const currentlyFavorite = favoriteAcademyIds.includes(academyId);
+    setFavoriteLoadingAcademyId(academyId);
+    try {
+      const response = await axios.post(
+        `/api/user/venue/${academyId}/favorite`,
+        { isFavorite: !currentlyFavorite },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const nextIsFavorite = Boolean(response.data?.isFavorite);
+      setFavoriteAcademyIds((prev) => {
+        if (nextIsFavorite) {
+          return prev.includes(academyId) ? prev : [...prev, academyId];
+        }
+        return prev.filter((id) => id !== academyId);
+      });
+    } catch (error) {
+      console.error('Failed to update favorite', error);
+      toast({ title: 'Failed to update favorite', variant: 'destructive' });
+    } finally {
+      setFavoriteLoadingAcademyId(null);
     }
   };
 
@@ -323,7 +568,7 @@ export default function BookCourt() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-slate-900">Available Academies</h2>
-            <p className="text-sm text-slate-500">{academies.length} found</p>
+            <p className="text-sm text-slate-500">{sortedAcademies.length} found</p>
           </div>
 
           {hasSearched && academies.length === 0 && (
@@ -334,8 +579,21 @@ export default function BookCourt() {
             </Card>
           )}
 
-          {academies.map((academy) => (
-            <Card key={academy._id} className="border-slate-200 hover:border-slate-300 hover:shadow-md transition-all">
+          {sortedAcademies.map((academy) => (
+            <Card
+              key={academy._id}
+              className="border-slate-200 hover:border-slate-300 hover:shadow-md transition-all cursor-pointer"
+              onClick={() => {
+                if (!academy?.shareCode) return;
+                navigate(`/venue/${academy.shareCode}`, {
+                  state: {
+                    city,
+                    sport,
+                    date,
+                  },
+                });
+              }}
+            >
               <CardContent className="p-6">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div className="space-y-2">
@@ -347,13 +605,38 @@ export default function BookCourt() {
                     </div>
                     <div className="flex items-center gap-2 text-sm text-slate-600">
                       <MapPin className="w-4 h-4 text-blue-600" />
-                      <span>{capitalizeWords(academy.address || academy.city)}</span>
+                      <a
+                        href={getAcademyMapHref(academy)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline underline-offset-2 hover:text-blue-700"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        {capitalizeWords(academy.address || academy.city)}
+                      </a>
                     </div>
                   </div>
 
-                  <Sheet>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      className={`rounded-lg ${favoriteAcademyIds.includes(academy._id) ? 'border-rose-300 text-rose-600' : ''}`}
+                      onClick={(event) => void handleToggleFavorite(academy._id, event)}
+                      disabled={favoriteLoadingAcademyId === academy._id}
+                    >
+                      <Heart className={`w-4 h-4 mr-2 ${favoriteAcademyIds.includes(academy._id) ? 'fill-rose-500 text-rose-500' : ''}`} />
+                    </Button>
+
+                    <Sheet>
                     <SheetTrigger asChild>
-                      <Button variant="outline" className="rounded-lg" onClick={() => handleOpenSheet(academy)}>
+                      <Button
+                        variant="outline"
+                        className="rounded-lg"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleOpenSheet(academy);
+                        }}
+                      >
                         Book Now
                       </Button>
                     </SheetTrigger>
@@ -463,6 +746,7 @@ export default function BookCourt() {
                       </div>
                     </SheetContent>
                   </Sheet>
+                  </div>
                 </div>
               </CardContent>
             </Card>

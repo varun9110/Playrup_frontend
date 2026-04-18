@@ -64,6 +64,8 @@ export default function Navbar({ onLogout }: NavbarProps) {
     { label: 'Admin Panel', path: '/adminlanding', roles: ['superadmin'] },
   ];
 
+  const profilePath = userRole === 'academy' ? '/academy-profile' : '/profile';
+
   const filteredNavItems = mainNavItems.filter(item => item.roles.includes(userRole));
 
   return (
@@ -109,7 +111,7 @@ export default function Navbar({ onLogout }: NavbarProps) {
                 </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link to="/profile" className="cursor-pointer">
+                  <Link to={profilePath} className="cursor-pointer">
                     <User className="w-4 h-4 mr-2" />
                     View Profile
                   </Link>
@@ -161,7 +163,7 @@ export default function Navbar({ onLogout }: NavbarProps) {
                     <p className="text-xs text-slate-500">{getUserEmail()}</p>
                   </div>
 
-                  <Link to="/profile" onClick={() => setOpen(false)}>
+                  <Link to={profilePath} onClick={() => setOpen(false)}>
                     <Button variant="outline" className="w-full justify-start">
                       <User className="w-4 h-4 mr-2" />
                       View Profile
