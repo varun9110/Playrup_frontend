@@ -283,9 +283,6 @@ export default function AcademySetup() {
                   Academy Dashboard
                 </Link>
               </Button>
-              <Button variant="outline" className="rounded-lg h-11" asChild>
-                <Link to="/academy-bookings">View Bookings</Link>
-              </Button>
             </div>
           </div>
         </div>

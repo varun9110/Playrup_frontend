@@ -79,12 +79,34 @@ interface DropInSession {
   shareCode: string;
 }
 
+interface CoachingSession {
+  _id: string;
+  sport: string;
+  courtNumber: number;
+  title: string;
+  description?: string;
+  skillLevel?: string;
+  coachName?: string;
+  coachBio?: string;
+  coachContact?: string;
+  startTime: string;
+  endTime: string;
+  date: string;
+  pricePerParticipant: number;
+  recurrenceType: string;
+  seriesId: string | null;
+  joinedParticipants: { _id: string; name: string; email?: string }[];
+  pendingRequests: { _id: string; name: string; email?: string }[];
+  shareCode?: string;
+}
+
 export default function AcademyBooking() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [selectedDropIn, setSelectedDropIn] = useState<DropInSession | null>(null);
+  const [selectedCoaching, setSelectedCoaching] = useState<CoachingSession | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [academies, setAcademies] = useState<Academy[]>([]);
   const [selectedAcademy, setSelectedAcademy] = useState<string>("");
@@ -93,12 +115,17 @@ export default function AcademyBooking() {
   const [cancelLoading, setCancelLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [dropIns, setDropIns] = useState<DropInSession[]>([]);
+  const [coachingSessions, setCoachingSessions] = useState<CoachingSession[]>([]);
   const [dropInShareUrl, setDropInShareUrl] = useState("");
+  const [coachingShareUrl, setCoachingShareUrl] = useState("");
   const [approvingParticipant, setApprovingParticipant] = useState<string | null>(null);
   const [rejectingParticipant, setRejectingParticipant] = useState<string | null>(null);
   const [dropInCancelling, setDropInCancelling] = useState(false);
   const [confirmCancelDropInOpen, setConfirmCancelDropInOpen] = useState(false);
   const [dropInCancelMode, setDropInCancelMode] = useState<'single' | 'series'>('single');
+  const [coachingCancelling, setCoachingCancelling] = useState(false);
+  const [confirmCancelCoachingOpen, setConfirmCancelCoachingOpen] = useState(false);
+  const [coachingCancelMode, setCoachingCancelMode] = useState<'single' | 'series'>('single');
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dateInputRef = useRef<HTMLInputElement | null>(null);
@@ -211,6 +238,19 @@ export default function AcademyBooking() {
     }
   };
 
+  /* ---------------- Fetch Coaching ---------------- */
+  const fetchCoachingSessions = async () => {
+    if (!selectedAcademy) return;
+    try {
+      const res = await axios.get(`/api/coaching/academy/${selectedAcademy}`, {
+        params: { startDate, endDate, sport: selectedSport || undefined },
+      });
+      setCoachingSessions(res.data.coachingSessions ?? []);
+    } catch (err) {
+      console.error('Error fetching coaching sessions:', err);
+    }
+  };
+
   useEffect(() => {
     if (userId) fetchAcademies();
   }, []);
@@ -228,10 +268,11 @@ export default function AcademyBooking() {
 
     fetchBookings();
     fetchDropIns();
+    fetchCoachingSessions();
 
     if (intervalRef.current) clearInterval(intervalRef.current);
 
-    intervalRef.current = setInterval(() => { fetchBookings(); fetchDropIns(); }, 30000);
+    intervalRef.current = setInterval(() => { fetchBookings(); fetchDropIns(); fetchCoachingSessions(); }, 30000);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -284,7 +325,7 @@ export default function AcademyBooking() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([fetchBookings(), fetchDropIns()]);
+    await Promise.all([fetchBookings(), fetchDropIns(), fetchCoachingSessions()]);
     setRefreshing(false);
   };
 
@@ -293,7 +334,7 @@ export default function AcademyBooking() {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
     setSelectedDate(today);
     setRefreshing(true);
-    await Promise.all([fetchBookings(), fetchDropIns()]);
+    await Promise.all([fetchBookings(), fetchDropIns(), fetchCoachingSessions()]);
     setRefreshing(false);
   };
 
@@ -302,6 +343,7 @@ export default function AcademyBooking() {
     .filter((b) => isSameDay(b.date, selectedDate))
     .filter((b) => (selectedSport ? b.sport === selectedSport : true));
   const dropInsForDay = dropIns.filter(d => d.date === format(selectedDate, "yyyy-MM-dd") && (!selectedSport || d.sport === selectedSport));
+  const coachingForDay = coachingSessions.filter(c => c.date === format(selectedDate, "yyyy-MM-dd") && (!selectedSport || c.sport === selectedSport));
   const selectedAcademyName = academies.find((academy) => academy._id === selectedAcademy)?.name;
   const activeCourtsCount = new Set(bookingsForDay.map((booking) => booking.court)).size;
   const selectedDropInShareLink = dropInShareUrl || (selectedDropIn?.shareCode
@@ -399,6 +441,92 @@ export default function AcademyBooking() {
     }
   };
 
+  const openCoachingDetails = async (coachingId: string) => {
+    try {
+      const [detailRes, shareRes] = await Promise.all([
+        axios.get(`/api/coaching/${coachingId}`),
+        axios.get(`/api/coaching/${coachingId}/share-link`),
+      ]);
+
+      const detail: CoachingSession = detailRes.data?.coaching;
+      setSelectedCoaching(detail);
+      const shareCode = shareRes.data?.shareCode || detail?.shareCode;
+      setCoachingShareUrl(shareCode ? `${window.location.origin}/coaching/share/${shareCode}` : '');
+    } catch (err) {
+      console.error('Failed to open coaching details', err);
+      toast({ title: 'Failed to load coaching details', variant: 'destructive' });
+    }
+  };
+
+  const refreshSelectedCoaching = async (coachingId: string) => {
+    try {
+      const res = await axios.get(`/api/coaching/${coachingId}`);
+      setSelectedCoaching(res.data?.coaching ?? null);
+      await fetchCoachingSessions();
+    } catch (err) {
+      console.error('Failed to refresh coaching details', err);
+    }
+  };
+
+  const handleApproveCoachingParticipant = async (participantId: string) => {
+    if (!selectedCoaching) return;
+    setApprovingParticipant(participantId);
+    try {
+      const res = await axios.post(`/api/coaching/${selectedCoaching._id}/approve/${participantId}`);
+      toast({ title: res.data?.message || 'Participant approved' });
+      await refreshSelectedCoaching(selectedCoaching._id);
+    } catch (error: any) {
+      toast({ title: error?.response?.data?.message || 'Failed to approve participant', variant: 'destructive' });
+    } finally {
+      setApprovingParticipant(null);
+    }
+  };
+
+  const handleRejectCoachingParticipant = async (participantId: string) => {
+    if (!selectedCoaching) return;
+    setRejectingParticipant(participantId);
+    try {
+      const res = await axios.post(`/api/coaching/${selectedCoaching._id}/reject/${participantId}`);
+      toast({ title: res.data?.message || 'Participant updated' });
+      await refreshSelectedCoaching(selectedCoaching._id);
+    } catch (error: any) {
+      toast({ title: error?.response?.data?.message || 'Failed to update participant', variant: 'destructive' });
+    } finally {
+      setRejectingParticipant(null);
+    }
+  };
+
+  const handleCopyCoachingShare = async () => {
+    if (!coachingShareUrl) return;
+    try {
+      await navigator.clipboard.writeText(coachingShareUrl);
+      toast({ title: 'Share link copied' });
+    } catch {
+      toast({ title: 'Failed to copy share link', variant: 'destructive' });
+    }
+  };
+
+  const cancelCoachingFromModal = async () => {
+    if (!selectedCoaching) return;
+    setCoachingCancelling(true);
+    try {
+      if (coachingCancelMode === 'single') {
+        await axios.delete(`/api/coaching/${selectedCoaching._id}`);
+      } else {
+        await axios.delete(`/api/coaching/series/${selectedCoaching.seriesId}/from/${selectedCoaching.date}`);
+      }
+      toast({ title: 'Coaching class cancelled successfully' });
+      setConfirmCancelCoachingOpen(false);
+      setSelectedCoaching(null);
+      setCoachingShareUrl('');
+      await fetchCoachingSessions();
+    } catch (error: any) {
+      toast({ title: error?.response?.data?.message || 'Failed to cancel coaching class', variant: 'destructive' });
+    } finally {
+      setCoachingCancelling(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
       <Navbar onLogout={handleLogout} />
@@ -411,22 +539,10 @@ export default function AcademyBooking() {
               <p className="text-slate-500 text-lg">Monitor and manage court reservations with a day-view timeline.</p>
             </div>
             <div className="flex gap-3 shrink-0 flex-wrap">
-              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" asChild>
-                <Link to="/academy-dropin">
-                  <PlusCircle className="h-4 w-4 mr-2" />
-                  Drop-In Sessions
-                </Link>
-              </Button>
               <Button className="bg-blue-600 hover:bg-blue-700 text-white" asChild>
                 <Link to="/academy-dashboard">
                   <Building2 className="h-4 w-4 mr-2" />
                   Academy Dashboard
-                </Link>
-              </Button>
-              <Button variant="outline" className="rounded-lg h-11" asChild>
-                <Link to="/academy-setup">
-                  <Settings className="h-4 w-4 mr-2" />
-                  Academy Setup
                 </Link>
               </Button>
             </div>
@@ -614,6 +730,7 @@ export default function AcademyBooking() {
                   {(() => {
                     const alreadyRenderedBooking = new Set<string>();
                     const alreadyRenderedDropIn = new Set<string>();
+                    const alreadyRenderedCoaching = new Set<string>();
 
                     return hours.map((hour) => (
                       <React.Fragment key={hour.toISOString()}>
@@ -624,6 +741,7 @@ export default function AcademyBooking() {
                         {courts.map((court) => {
                           const bookingsForCourt = bookingsForDay.filter((b) => b.court === court);
                           const dropInsForCourt = dropInsForDay.filter((d) => d.courtNumber === court);
+                          const coachingForCourt = coachingForDay.filter((c) => c.courtNumber === court);
 
                           return (
                             <div key={court} className="relative border overflow-visible">
@@ -703,6 +821,48 @@ export default function AcademyBooking() {
                                     )}
                                     <div className="text-[10px] leading-tight mt-0.5 whitespace-nowrap">
                                       {dropIn.startTime} – {dropIn.endTime}
+                                    </div>
+                                  </motion.div>
+                                );
+                              })}
+
+                              {coachingForCourt.map((coaching) => {
+                                if (alreadyRenderedCoaching.has(coaching._id)) return null;
+
+                                const slotHeight = 72;
+                                const firstHour = hours[0].getHours() + hours[0].getMinutes() / 60;
+                                const [cStartH, cStartM] = coaching.startTime.split(':').map(Number);
+                                const [cEndH, cEndM] = coaching.endTime.split(':').map(Number);
+                                const coachingStartHour = cStartH + cStartM / 60;
+                                const coachingEndHour = cEndH + cEndM / 60;
+
+                                if (hour.getHours() + hour.getMinutes() / 60 > coachingStartHour) return null;
+
+                                alreadyRenderedCoaching.add(coaching._id);
+
+                                const top = (coachingStartHour - firstHour) * slotHeight;
+                                const height = Math.max((coachingEndHour - coachingStartHour) * slotHeight, 40);
+                                const isCompact = height <= 52;
+
+                                return (
+                                  <motion.div
+                                    key={coaching._id}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    className="absolute z-20 left-1 right-1 rounded-xl bg-amber-100 border border-amber-400 px-2 py-1.5 text-slate-800 shadow-sm cursor-pointer overflow-hidden"
+                                    style={{ top, height }}
+                                    onClick={() => { void openCoachingDetails(coaching._id); }}
+                                  >
+                                    <div className="font-semibold text-[11px] leading-tight truncate">
+                                      Coaching {coaching.title ? `· ${coaching.title}` : ''}
+                                    </div>
+                                    {!isCompact && (
+                                      <div className="text-[11px] text-slate-700 truncate">
+                                        {coaching.joinedParticipants?.length ?? 0} joined
+                                      </div>
+                                    )}
+                                    <div className="text-[10px] leading-tight mt-0.5 whitespace-nowrap">
+                                      {coaching.startTime} – {coaching.endTime}
                                     </div>
                                   </motion.div>
                                 );
@@ -914,9 +1074,6 @@ export default function AcademyBooking() {
                   <Button variant="outline" onClick={() => setSelectedDropIn(null)}>
                     Close
                   </Button>
-                  <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" asChild>
-                    <Link to="/academy-dropin">Open Full Drop-In Manager</Link>
-                  </Button>
                 </div>
               </div>
             )}
@@ -941,6 +1098,195 @@ export default function AcademyBooking() {
               </Button>
               <Button className="bg-red-600 hover:bg-red-700 text-white" disabled={dropInCancelling} onClick={cancelDropInFromModal}>
                 {dropInCancelling ? 'Cancelling...' : 'Yes, Cancel'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={!!selectedCoaching}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedCoaching(null);
+              setCoachingShareUrl('');
+            }
+          }}
+        >
+          <DialogContent className="rounded-2xl max-w-xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{selectedCoaching?.title || (selectedCoaching ? capitalizeWords(selectedCoaching.sport) : 'Coaching Class')}</DialogTitle>
+            </DialogHeader>
+
+            {selectedCoaching && (
+              <div className="space-y-4 text-sm text-slate-700">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><strong>Sport:</strong> {capitalizeWords(selectedCoaching.sport)}</div>
+                  <div><strong>Court:</strong> {selectedCoaching.courtNumber}</div>
+                  <div><strong>Date:</strong> {selectedCoaching.date}</div>
+                  <div><strong>Time:</strong> {selectedCoaching.startTime} - {selectedCoaching.endTime}</div>
+                  <div><strong>Joined:</strong> {selectedCoaching.joinedParticipants?.length ?? 0}</div>
+                  <div><strong>Fee:</strong> {selectedCoaching.pricePerParticipant > 0 ? `₹${selectedCoaching.pricePerParticipant}` : 'Free'}</div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Coaching</Badge>
+                  {selectedCoaching.recurrenceType !== 'none' && (
+                    <Badge variant="outline" className="capitalize">{selectedCoaching.recurrenceType}</Badge>
+                  )}
+                  <Badge variant="outline">{selectedCoaching.pendingRequests?.length ?? 0} pending</Badge>
+                </div>
+
+                {(selectedCoaching.coachName || selectedCoaching.coachBio || selectedCoaching.coachContact) && (
+                  <div>
+                    <strong>Coach Details</strong>
+                    {selectedCoaching.coachName && <p className="mt-1"><span className="font-medium">Name:</span> {selectedCoaching.coachName}</p>}
+                    {selectedCoaching.coachContact && <p><span className="font-medium">Contact:</span> {selectedCoaching.coachContact}</p>}
+                    {selectedCoaching.coachBio && <p className="mt-1 text-slate-600">{selectedCoaching.coachBio}</p>}
+                  </div>
+                )}
+
+                {selectedCoaching.description && (
+                  <div>
+                    <strong>Description:</strong>
+                    <p className="mt-1 text-slate-600">{selectedCoaching.description}</p>
+                  </div>
+                )}
+
+                {coachingShareUrl && (
+                  <div>
+                    <strong>Share Link:</strong>
+                    <div className="mt-1 flex items-center gap-2 bg-slate-50 rounded-lg p-2 border">
+                      <p className="break-all text-blue-700 text-xs flex-1">{coachingShareUrl}</p>
+                      <Button size="sm" variant="ghost" onClick={handleCopyCoachingShare}>
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="ghost" asChild>
+                        <a href={coachingShareUrl} target="_blank" rel="noopener noreferrer">
+                          <Share2 className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {(selectedCoaching.joinedParticipants?.length ?? 0) > 0 && (
+                  <div>
+                    <strong>Joined Participants</strong>
+                    <div className="mt-2 space-y-1">
+                      {selectedCoaching.joinedParticipants.map((p) => (
+                        <div key={p._id} className="px-2 py-2 rounded bg-emerald-50 border border-emerald-100 flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{capitalizeWords(p.name)}</p>
+                            {p.email && <p className="text-xs text-slate-500 truncate">{p.email}</p>}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs text-red-600 border-red-200"
+                            disabled={rejectingParticipant === p._id}
+                            onClick={() => handleRejectCoachingParticipant(p._id)}
+                          >
+                            {rejectingParticipant === p._id ? '…' : 'Remove'}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {(selectedCoaching.pendingRequests?.length ?? 0) > 0 && (
+                  <div>
+                    <strong>Pending Requests</strong>
+                    <div className="mt-2 space-y-1">
+                      {selectedCoaching.pendingRequests.map((p) => (
+                        <div key={p._id} className="px-2 py-2 rounded bg-amber-50 border border-amber-100 flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{capitalizeWords(p.name)}</p>
+                            {p.email && <p className="text-xs text-slate-500 truncate">{p.email}</p>}
+                          </div>
+                          <div className="flex gap-2 shrink-0">
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                              disabled={approvingParticipant === p._id}
+                              onClick={() => handleApproveCoachingParticipant(p._id)}
+                            >
+                              {approvingParticipant === p._id ? '…' : 'Approve'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs text-red-600 border-red-200"
+                              disabled={rejectingParticipant === p._id}
+                              onClick={() => handleRejectCoachingParticipant(p._id)}
+                            >
+                              {rejectingParticipant === p._id ? '…' : 'Reject'}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <strong>Cancel Class</strong>
+                  <div className="mt-2 flex gap-2 flex-wrap">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-red-600 border-red-200"
+                      onClick={() => {
+                        setCoachingCancelMode('single');
+                        setConfirmCancelCoachingOpen(true);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" /> Cancel This Class
+                    </Button>
+                    {selectedCoaching.seriesId && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-700 border-red-200"
+                        onClick={() => {
+                          setCoachingCancelMode('series');
+                          setConfirmCancelCoachingOpen(true);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" /> Cancel This & Future
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-2 flex gap-2">
+                  <Button variant="outline" onClick={() => setSelectedCoaching(null)}>
+                    Close
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={confirmCancelCoachingOpen} onOpenChange={setConfirmCancelCoachingOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirm Coaching Cancellation</DialogTitle>
+            </DialogHeader>
+
+            <p className="text-sm text-slate-600">
+              {coachingCancelMode === 'single'
+                ? 'Are you sure you want to cancel this coaching class? This cannot be undone.'
+                : 'Are you sure you want to cancel this and all future coaching classes in the series? This cannot be undone.'}
+            </p>
+
+            <div className="pt-2 flex gap-2">
+              <Button variant="outline" onClick={() => setConfirmCancelCoachingOpen(false)}>
+                Keep It
+              </Button>
+              <Button className="bg-red-600 hover:bg-red-700 text-white" disabled={coachingCancelling} onClick={cancelCoachingFromModal}>
+                {coachingCancelling ? 'Cancelling...' : 'Yes, Cancel'}
               </Button>
             </div>
           </DialogContent>

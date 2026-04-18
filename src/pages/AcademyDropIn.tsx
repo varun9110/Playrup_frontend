@@ -433,21 +433,9 @@ export default function AcademyDropIn() {
           </div>
           <div className="flex gap-3 shrink-0 flex-wrap">
             <Button variant="outline" asChild>
-              <Link to="/academy-booking">
-                <Calendar className="h-4 w-4 mr-2" />
-                Booking Calendar
-              </Link>
-            </Button>
-            <Button variant="outline" asChild>
               <Link to="/academy-dashboard">
                 <Building2 className="h-4 w-4 mr-2" />
                 Dashboard
-              </Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link to="/academy-setup">
-                <Settings className="h-4 w-4 mr-2" />
-                Setup
               </Link>
             </Button>
           </div>

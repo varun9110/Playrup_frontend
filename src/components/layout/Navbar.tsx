@@ -56,7 +56,11 @@ export default function Navbar({ onLogout }: NavbarProps) {
     { label: 'Browse Activities', path: '/activities', roles: ['user'] },
     { label: 'My Bookings', path: '/my-bookings', roles: ['user'] },
     { label: 'Host Activity', path: '/host-activity', roles: ['user'] },
-    { label: 'Academy Dashboard', path: '/academy-dashboard', roles: ['academy'] },
+    { label: 'Dashboard', path: '/academy-dashboard', roles: ['academy'] },
+    { label: 'Setup', path: '/academy-setup', roles: ['academy'] },
+    { label: 'Booking Board', path: '/academy-bookings', roles: ['academy'] },
+    { label: 'Drop-In Manager', path: '/academy-dropin', roles: ['academy'] },
+    { label: 'Coaching Manager', path: '/academy-coaching', roles: ['academy'] },
     { label: 'Admin Panel', path: '/adminlanding', roles: ['superadmin'] },
   ];
 

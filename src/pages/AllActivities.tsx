@@ -86,9 +86,10 @@ export default function AllActivities() {
   const fetchActivities = async () => {
     setLoading(true);
     try {
-      const [activityRes, dropInRes] = await Promise.all([
+      const [activityRes, dropInRes, coachingRes] = await Promise.all([
         axios.get('/api/activity/allActivities'),
         axios.get('/api/dropin/all'),
+        axios.get('/api/coaching/all'),
       ]);
 
       const normalizedActivities = (activityRes.data || []).map((activity) => {
@@ -133,7 +134,36 @@ export default function AllActivities() {
         };
       });
 
-      const merged = [...normalizedActivities, ...normalizedDropIns].sort((a, b) => {
+      const normalizedCoaching = (coachingRes.data?.coachingSessions || []).map((session) => {
+        const localDateObj = new Date(`${session.date}T12:00:00`);
+        const academy = session.academyId || {};
+
+        return {
+          ...session,
+          sourceType: 'coaching',
+          localDate: session.date,
+          localDateObj,
+          localFromTime: session.startTime,
+          localToTime: session.endTime,
+          fromTime: session.startTime,
+          toTime: session.endTime,
+          maxPlayers: null,
+          joinedPlayers: session.joinedParticipants || [],
+          city: academy.city || '',
+          location: academy.name || '',
+          address: academy.address || '',
+          host: {
+            id: academy._id || 'academy',
+            name: academy.name || 'Academy',
+          },
+          requestedByCurrentUser: !!session.hasRequested,
+          requestStatus: session.hasRequested ? 'Pending' : '',
+          shareCode: session.shareCode,
+          title: session.title,
+        };
+      });
+
+      const merged = [...normalizedActivities, ...normalizedDropIns, ...normalizedCoaching].sort((a, b) => {
         const aDate = new Date(`${a.localDate || a.date}T${a.localFromTime || a.fromTime || '00:00'}`);
         const bDate = new Date(`${b.localDate || b.date}T${b.localFromTime || b.fromTime || '00:00'}`);
         return aDate.getTime() - bDate.getTime();
@@ -199,7 +229,7 @@ export default function AllActivities() {
 
   // Helper functions
   const isJoined = (activity) => {
-    if (activity.sourceType === 'dropin') {
+    if (activity.sourceType === 'dropin' || activity.sourceType === 'coaching') {
       if (activity.hasJoined) return true;
       return activity.joinedPlayers?.some((player) => getComparableValue(player?._id || player) === currentUserId);
     }
@@ -207,7 +237,7 @@ export default function AllActivities() {
   };
 
   const isRequested = (activity) => {
-    if (activity.sourceType === 'dropin') {
+    if (activity.sourceType === 'dropin' || activity.sourceType === 'coaching') {
       return !!activity.hasRequested || !!activity.requestedByCurrentUser;
     }
 
@@ -243,9 +273,12 @@ export default function AllActivities() {
       return;
     }
 
-    if (selected?.sourceType === 'dropin') {
+    if (selected?.sourceType === 'dropin' || selected?.sourceType === 'coaching') {
       try {
-        const res = await axios.post(`/api/dropin/${activityId}/request-join`);
+        const endpoint = selected.sourceType === 'coaching'
+          ? `/api/coaching/${activityId}/request-join`
+          : `/api/dropin/${activityId}/request-join`;
+        const res = await axios.post(endpoint);
         toast({ title: res.data?.message || 'Join request sent' });
 
         setActivities((prev) =>
@@ -311,6 +344,9 @@ export default function AllActivities() {
     if (!activity?.shareCode) return '';
     if (activity.sourceType === 'dropin') {
       return `${window.location.origin}/dropin/share/${activity.shareCode}`;
+    }
+    if (activity.sourceType === 'coaching') {
+      return `${window.location.origin}/coaching/share/${activity.shareCode}`;
     }
     return `${window.location.origin}/activity/share/${activity.shareCode}`;
   };
@@ -445,7 +481,7 @@ export default function AllActivities() {
 
   const sports = ['Basketball', 'Tennis', 'Badminton', 'Volleyball', 'Football'];
 
-  const hostedCount = activities.filter((activity) => activity.sourceType !== 'dropin' && getComparableValue(activity?.host?.id) === currentUserId).length;
+  const hostedCount = activities.filter((activity) => activity.sourceType !== 'dropin' && activity.sourceType !== 'coaching' && getComparableValue(activity?.host?.id) === currentUserId).length;
   const joinedCount = activities.filter((activity) => isJoined(activity)).length;
 
   return (
@@ -566,7 +602,8 @@ export default function AllActivities() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredActivities.map((activity) => {
               const isDropIn = activity.sourceType === 'dropin';
-              const isHost = !isDropIn && getComparableValue(activity?.host?.id) === currentUserId;
+              const isCoaching = activity.sourceType === 'coaching';
+              const isHost = !isDropIn && !isCoaching && getComparableValue(activity?.host?.id) === currentUserId;
 
               return (
                 <Card key={activity._id} className="overflow-hidden border-slate-200 hover:border-slate-300 hover:shadow-md transition-all">
@@ -576,11 +613,15 @@ export default function AllActivities() {
                         <CardTitle className="text-lg text-slate-900">
                           {isDropIn
                             ? (activity.title || capitalizeWords(activity.sport))
+                            : isCoaching
+                              ? (activity.title || `Coaching · ${capitalizeWords(activity.sport)}`)
                             : capitalizeWords(activity.sport)}
                         </CardTitle>
                         <CardDescription className="mt-1">
                           {isDropIn
                             ? `Drop-In by ${capitalizeWords(activity.host?.name || 'Academy')}`
+                            : isCoaching
+                              ? `Coaching by ${capitalizeWords(activity.host?.name || 'Academy')}`
                             : `Hosted by ${capitalizeWords(activity.host?.name || 'Host')}`}
                         </CardDescription>
                       </div>
@@ -589,6 +630,11 @@ export default function AllActivities() {
                         {isDropIn && (
                           <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
                             Drop-In
+                          </Badge>
+                        )}
+                        {isCoaching && (
+                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+                            Coaching
                           </Badge>
                         )}
                         <Badge variant="outline" className="border-slate-300 text-slate-700">
@@ -654,10 +700,11 @@ export default function AllActivities() {
                       <div className="flex items-center gap-2">
                         <Users className="h-4 w-4 text-blue-600" />
                         <span>
-                          {activity.joinedPlayers?.length || 0}/
-                          {activity.maxPlayers} players
+                          {isCoaching
+                            ? `${activity.joinedPlayers?.length || 0} joined`
+                            : `${activity.joinedPlayers?.length || 0}/${activity.maxPlayers} players`}
                         </span>
-                        {!isDropIn && (
+                        {!isDropIn && !isCoaching && (
                           <Button
                             type="button"
                             variant="ghost"
@@ -694,9 +741,9 @@ export default function AllActivities() {
                       <Button
                         size="sm"
                         className="w-full"
-                        variant={isRequested(activity) && !isDropIn ? 'destructive' : 'default'}
+                        variant={isRequested(activity) && !isDropIn && !isCoaching ? 'destructive' : 'default'}
                         onClick={() => {
-                          if (isDropIn) {
+                          if (isDropIn || isCoaching) {
                             if (!isRequested(activity)) handleJoinActivity(activity._id);
                             return;
                           }
@@ -713,7 +760,7 @@ export default function AllActivities() {
                           : isJoined(activity)
                           ? 'Joined'
                           : isRequested(activity)
-                            ? (isDropIn ? 'Request Sent' : 'Withdraw')
+                            ? ((isDropIn || isCoaching) ? 'Request Sent' : 'Withdraw')
                             : 'Join Activity'}
                       </Button>
 

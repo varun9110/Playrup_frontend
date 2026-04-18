@@ -38,6 +38,8 @@ import AcademyDashboard from "./pages/AcademyDashboard";
 import AcademyBooking from "./pages/AcademyBooking";
 import AcademyDropIn from "./pages/AcademyDropIn";
 import PublicDropInShare from "./pages/PublicDropInShare";
+import AcademyCoaching from "./pages/AcademyCoaching";
+import PublicCoachingShare from "./pages/PublicCoachingShare";
 
 const queryClient = new QueryClient();
 
@@ -48,7 +50,8 @@ const AppRoutes = () => {
   const isPublicRoute =
     location.pathname.startsWith('/activity/share/') ||
     location.pathname.startsWith('/public/profile/') ||
-    location.pathname.startsWith('/dropin/share/');
+    location.pathname.startsWith('/dropin/share/') ||
+    location.pathname.startsWith('/coaching/share/');
   const isAuthRoute = authRoutes.includes(location.pathname);
   const hideNotificationBellRoutes = ["/", "/login", "/signup", "/verify"];
   const shouldShowNotificationBell = !hideNotificationBellRoutes.includes(location.pathname) && !isPublicRoute;
@@ -117,6 +120,7 @@ const AppRoutes = () => {
         <Route path="/activity/share/:shareCode" element={<PublicActivityShare />} />
         <Route path="/public/profile/:userToken" element={<PublicParticipantProfile />} />
         <Route path="/dropin/share/:shareCode" element={<PublicDropInShare />} />
+        <Route path="/coaching/share/:shareCode" element={<PublicCoachingShare />} />
 
         {/* User Routes */}
         <Route path="/dashboard" element={<PrivateRoute requiredRole="user"><UserDashboard /></PrivateRoute>} />
@@ -138,6 +142,7 @@ const AppRoutes = () => {
         <Route path="/academy-bookings" element={<PrivateRoute requiredRole="academy"><AcademyBooking /></PrivateRoute>} />
         <Route path="/academy-booking" element={<PrivateRoute requiredRole="academy"><AcademyBooking /></PrivateRoute>} />
         <Route path="/academy-dropin" element={<PrivateRoute requiredRole="academy"><AcademyDropIn /></PrivateRoute>} />
+        <Route path="/academy-coaching" element={<PrivateRoute requiredRole="academy"><AcademyCoaching /></PrivateRoute>} />
 
 
         {/* Super Admin Routes */}
