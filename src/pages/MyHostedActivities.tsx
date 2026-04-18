@@ -33,6 +33,7 @@ import {
   History,
   PlusCircle,
   Star,
+  Copy,
   XCircle,
   Shield,
   UserCheck,
@@ -64,6 +65,7 @@ type JoinedPlayer = {
 
 type Activity = {
   _id: string;
+  shareCode?: string;
   sport: string;
   city?: string;
   location?: string;
@@ -362,6 +364,25 @@ export default function MyHostedActivities() {
 
     const userToken = encodeURIComponent(JSON.stringify(participantId));
     navigate(`/participant-profile/${userToken}`);
+  };
+
+  const getShareLink = (activity: Activity) => {
+    if (!activity?.shareCode) return '';
+    return `${window.location.origin}/activity/share/${activity.shareCode}`;
+  };
+
+  const handleCopyShareLink = async (activity: Activity) => {
+    const shareLink = getShareLink(activity);
+
+    if (!shareLink) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareLink);
+    } catch (error) {
+      console.error('Failed to copy share link', error);
+    }
   };
 
   const resolveMediaUrl = (url: string) => {
@@ -718,6 +739,16 @@ export default function MyHostedActivities() {
               >
                 <Users className="h-4 w-4 mr-2" />
                 View Participants
+              </Button>
+
+              <Button
+                variant="outline"
+                className="w-full border-blue-200 text-blue-700 hover:bg-blue-50"
+                onClick={() => handleCopyShareLink(activity)}
+                disabled={!activity.shareCode}
+              >
+                <Copy className="h-4 w-4 mr-2" />
+                Copy Share Link
               </Button>
 
               <Button

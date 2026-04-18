@@ -30,6 +30,7 @@ import {
   Compass,
   Zap,
   MoreVertical,
+  Copy,
 } from 'lucide-react';
 import { utcDateTimeToLocalParts } from '@/lib/utils';
 
@@ -188,7 +189,10 @@ export default function AllActivities() {
   /* ---------- ACTION HANDLERS ---------- */
 
   const handleJoinActivity = async (activityId) => {
-    if (!userEmail) return;
+    if (!userEmail || !userId || !localStorage.getItem('token')) {
+      navigate('/login');
+      return;
+    }
 
     try {
       const res = await axios.post('/api/activity/requestJoin', {
@@ -224,6 +228,27 @@ export default function AllActivities() {
         title: err.response?.data?.message || 'Failed to request to join',
         variant: 'destructive',
       });
+    }
+  };
+
+  const getShareLink = (activity) => {
+    if (!activity?.shareCode) return '';
+    return `${window.location.origin}/activity/share/${activity.shareCode}`;
+  };
+
+  const handleCopyShareLink = async (activity) => {
+    const shareLink = getShareLink(activity);
+    if (!shareLink) {
+      toast({ title: 'Share Link Is Not Available Yet', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      toast({ title: 'Share Link Copied' });
+    } catch (error) {
+      console.error('Failed to copy share link', error);
+      toast({ title: 'Unable To Copy Share Link', variant: 'destructive' });
     }
   };
 
@@ -559,6 +584,18 @@ export default function AllActivities() {
                         </Badge>
                         <span className="text-slate-500 text-xs">Skill Level</span>
                       </div>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => handleCopyShareLink(activity)}
+                        disabled={!activity.shareCode}
+                      >
+                        <Copy className="h-4 w-4 mr-2" />
+                        Copy Share Link
+                      </Button>
                     </div>
 
                     {!isHost && (

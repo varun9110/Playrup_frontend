@@ -70,6 +70,7 @@ export default function EditActivity() {
   const [courts, setCourts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [shareCode, setShareCode] = useState('');
 
   const { handleSubmit, setValue, watch } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -217,6 +218,7 @@ export default function EditActivity() {
         setValue("maxParticipants", Number(a.maxPlayers || 2));
         setValue("price", Number(a.pricePerParticipant || 0));
         setValue("address", a.address || "");
+        setShareCode(a.shareCode || '');
 
         setAcademiesList((prev) => {
           const academyId = String(a.academyId || "");
@@ -309,6 +311,20 @@ export default function EditActivity() {
     navigate("/");
   };
 
+  const handleCopyShareLink = async () => {
+    if (!shareCode) {
+      toast({ title: "Share Link Is Not Available Yet", variant: "destructive" });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/activity/share/${shareCode}`);
+      toast({ title: "Share Link Copied" });
+    } catch (_error) {
+      toast({ title: "Unable To Copy Share Link", variant: "destructive" });
+    }
+  };
+
   if (!userEmail || !userId) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
@@ -350,15 +366,20 @@ export default function EditActivity() {
 
       <div className="container mx-auto px-4 py-8 md:py-12 max-w-3xl">
         <div className="mb-8">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mb-4 text-slate-600 hover:text-slate-900 -ml-2"
-            onClick={() => navigate('/activities')}
-          >
-            <ArrowLeft className="w-4 h-4 mr-1" />
-            Back to Activities
-          </Button>
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-slate-600 hover:text-slate-900 -ml-2"
+              onClick={() => navigate('/activities')}
+            >
+              <ArrowLeft className="w-4 h-4 mr-1" />
+              Back to Activities
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleCopyShareLink} disabled={!shareCode}>
+              Copy Share Link
+            </Button>
+          </div>
           <h1 className="text-4xl font-bold text-slate-900 mb-2">Edit Activity</h1>
           <p className="text-slate-600 text-lg">
             Update your hosted activity details and keep your players informed

@@ -23,6 +23,8 @@ import MyHostedActivities from "./pages/MyHostedActivities";
 import UserActivityRequests from "./pages/UserActivityRequests";
 import ActivityFeedback from "./pages/ActivityFeedback";
 import EditActivity from "./pages/EditActivity";
+import PublicActivityShare from "./pages/PublicActivityShare";
+import PublicParticipantProfile from "./pages/PublicParticipantProfile";
 
 /** Super Admin pages import */
 import AdminLanding from "./pages/AdminLanding";
@@ -40,10 +42,13 @@ const queryClient = new QueryClient();
 const AppRoutes = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const authRoutes = ["/", "/signup", "/verify"];
+  const authRoutes = ["/", "/login", "/signup", "/verify"];
+  const isPublicRoute =
+    location.pathname.startsWith('/activity/share/') ||
+    location.pathname.startsWith('/public/profile/');
   const isAuthRoute = authRoutes.includes(location.pathname);
-  const hideNotificationBellRoutes = ["/", "/signup", "/verify"];
-  const shouldShowNotificationBell = !hideNotificationBellRoutes.includes(location.pathname);
+  const hideNotificationBellRoutes = ["/", "/login", "/signup", "/verify"];
+  const shouldShowNotificationBell = !hideNotificationBellRoutes.includes(location.pathname) && !isPublicRoute;
 
   const getStoredUser = () => {
     try {
@@ -78,6 +83,10 @@ const AppRoutes = () => {
       const token = localStorage.getItem("token");
       const user = getStoredUser();
 
+      if (isPublicRoute) {
+        return;
+      }
+
       if (!token || !user) {
         if (!authRoutes.includes(location.pathname)) {
           navigate("/", { replace: true });
@@ -92,15 +101,18 @@ const AppRoutes = () => {
 
     window.addEventListener("storage", onStorageChange);
     return () => window.removeEventListener("storage", onStorageChange);
-  }, [location.pathname, navigate]);
+  }, [isPublicRoute, location.pathname, navigate]);
 
   return (
     <>
       {shouldShowNotificationBell && <NotificationBell />}
       <Routes>
         <Route path="/" element={<Index />} />
+        <Route path="/login" element={<Index />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/verify" element={<Verify />} />
+        <Route path="/activity/share/:shareCode" element={<PublicActivityShare />} />
+        <Route path="/public/profile/:userToken" element={<PublicParticipantProfile />} />
 
         {/* User Routes */}
         <Route path="/dashboard" element={<PrivateRoute requiredRole="user"><UserDashboard /></PrivateRoute>} />

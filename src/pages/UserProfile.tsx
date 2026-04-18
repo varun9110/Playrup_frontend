@@ -322,31 +322,31 @@ export default function UserProfile() {
               </CardContent>
             </Card>
 
-            {!isViewingAnotherUser && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-xl flex items-center gap-2">
-                    My PlayPals
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {loading ? (
-                    <p className="text-sm text-muted-foreground">Loading play pals...</p>
-                  ) : profile?.playPals?.length ? (
-                    <div className="space-y-3 max-h-72 overflow-auto pr-1">
-                      {profile.playPals.map((pal) => (
-                        <div key={pal.id.content} className="rounded-lg border bg-muted/20 p-3">
-                          <p className="font-medium text-slate-900">{capitalizeWords(pal.name)}</p>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl flex items-center gap-2">
+                  PlayPals
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <p className="text-sm text-muted-foreground">Loading play pals...</p>
+                ) : profile?.playPals?.length ? (
+                  <div className="space-y-3 max-h-72 overflow-auto pr-1">
+                    {profile.playPals.map((pal) => (
+                      <div key={pal.id.content} className="rounded-lg border bg-muted/20 p-3">
+                        <p className="font-medium text-slate-900">{capitalizeWords(pal.name)}</p>
+                        {!isViewingAnotherUser && (
                           <p className="text-xs text-muted-foreground break-all">{pal.email}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No play pals yet. Complete activities with new players to build this list.</p>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No play pals yet. Complete activities with new players to build this list.</p>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
           <div className="xl:col-span-2 space-y-6">

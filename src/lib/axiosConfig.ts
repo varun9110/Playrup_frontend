@@ -36,7 +36,7 @@ axios.interceptors.response.use(
         }
       );
       setTimeout(() => {
-        window.location.href = '/';
+        window.location.href = '/login';
       }, 250);
     }
     return Promise.reject(error);

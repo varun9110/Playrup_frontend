@@ -402,7 +402,18 @@ export default function HostActivity() {
       const res = await axios.post("/api/activity/createActivity", payload);
 
       if (res.data.success) {
-        toast({ title: "Activity created 🎉" });
+        const shareCode = res.data?.activity?.shareCode;
+        if (shareCode) {
+          const shareLink = `${window.location.origin}/activity/share/${shareCode}`;
+          try {
+            await navigator.clipboard.writeText(shareLink);
+            toast({ title: "Activity Created And Share Link Copied" });
+          } catch (_error) {
+            toast({ title: "Activity Created" });
+          }
+        } else {
+          toast({ title: "Activity Created" });
+        }
       } else {
         toast({ title: res.data.message || "Failed to create activity", variant: "destructive" });
       }

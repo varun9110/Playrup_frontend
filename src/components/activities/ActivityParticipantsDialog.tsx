@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Users } from 'lucide-react';
 
 type EncryptedValue = {
@@ -13,7 +14,7 @@ type EncryptedValue = {
 type ActivityParticipant = {
   id: EncryptedValue | string;
   name: string;
-  email?: string;
+  avatarUrl?: string | null;
   isHost: boolean;
 };
 
@@ -85,7 +86,18 @@ export default function ActivityParticipantsDialog({
               key={`${typeof participant.id === 'string' ? participant.id : participant.id.content}-${participant.name}`}
               className="rounded-lg border p-3"
             >
-              <div className="min-w-0">
+              <div className="min-w-0 flex items-center gap-3">
+                <Avatar className="h-9 w-9">
+                  <AvatarImage src={participant.avatarUrl || undefined} alt={participant.name || 'Player'} />
+                  <AvatarFallback>
+                    {(participant.name || 'P')
+                      .split(' ')
+                      .slice(0, 2)
+                      .map((part) => part[0])
+                      .join('')
+                      .toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
                     type="button"
@@ -98,9 +110,6 @@ export default function ActivityParticipantsDialog({
                     <Badge variant="secondary" className="text-xs">Host</Badge>
                   )}
                 </div>
-                {!!participant.email && (
-                  <p className="text-xs text-muted-foreground truncate">{participant.email}</p>
-                )}
               </div>
             </div>
           ))}
