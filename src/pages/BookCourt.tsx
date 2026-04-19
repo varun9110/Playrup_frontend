@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
@@ -83,6 +83,8 @@ function BookCourt() {
   const [favoriteLoadingAcademyId, setFavoriteLoadingAcademyId] = useState<string | null>(null);
   const [currentLocation, setCurrentLocation] = useState<GeoPoint | null>(null);
   const [distanceByAcademyId, setDistanceByAcademyId] = useState<Record<string, number>>({});
+  const [openSheetAcademyId, setOpenSheetAcademyId] = useState<string | null>(null);
+  const sheetJustClosedRef = useRef(false);
   const navigate = useNavigate();
 
   const prefills = (location.state || {}) as {
@@ -446,6 +448,7 @@ function BookCourt() {
     setSelectedAcademy(null);
     setCourts([]);
     setRateContext(null);
+    setOpenSheetAcademyId(null);
     handleSearch();
   };
 
@@ -596,6 +599,7 @@ function BookCourt() {
               key={academy._id}
               className="border-slate-200 hover:border-slate-300 hover:shadow-md transition-all cursor-pointer"
               onClick={() => {
+                if (sheetJustClosedRef.current) return;
                 if (!academy?.shareCode) return;
                 navigate(`/venue/${academy.shareCode}`, {
                   state: {
@@ -639,13 +643,23 @@ function BookCourt() {
                       <Heart className={`w-4 h-4 mr-2 ${favoriteAcademyIds.includes(academy._id) ? 'fill-rose-500 text-rose-500' : ''}`} />
                     </Button>
 
-                    <Sheet>
+                    <Sheet
+                      open={openSheetAcademyId === academy._id}
+                      onOpenChange={(open) => {
+                        if (!open) {
+                          sheetJustClosedRef.current = true;
+                          setOpenSheetAcademyId(null);
+                          setTimeout(() => { sheetJustClosedRef.current = false; }, 300);
+                        }
+                      }}
+                    >
                     <SheetTrigger asChild>
                       <Button
                         variant="outline"
                         className="rounded-lg"
                         onClick={(event) => {
                           event.stopPropagation();
+                          setOpenSheetAcademyId(academy._id);
                           handleOpenSheet(academy);
                         }}
                       >
@@ -653,7 +667,7 @@ function BookCourt() {
                       </Button>
                     </SheetTrigger>
 
-                    <SheetContent side="right" className="w-[95vw] max-w-md p-0 overflow-hidden">
+                    <SheetContent side="right" className="w-[95vw] max-w-md p-0 overflow-hidden" onClick={(e) => e.stopPropagation()}>
                       <SheetHeader className="border-b bg-gradient-to-r from-blue-50 to-cyan-50 px-6 py-5">
                         <SheetTitle className="text-slate-900">{capitalizeWords(academy.name)}</SheetTitle>
                         <SheetDescription className="text-slate-600">
