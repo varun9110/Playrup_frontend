@@ -53,10 +53,17 @@ type GeoPoint = {
   lng: number;
 };
 
+type RateContext = {
+  rateType: "weekday" | "holiday";
+  weekday?: string;
+  localDate?: string;
+  timezone?: string;
+};
+
 const BOOK_COURT_FILTERS_STORAGE_KEY = "bookcourt.filters";
 const BOOK_COURT_RESULTS_STORAGE_KEY = "bookcourt.results";
 
-export default function BookCourt() {
+function BookCourt() {
   const location = useLocation();
   const [city, setCity] = useState("");
   const [sport, setSport] = useState("");
@@ -70,6 +77,7 @@ export default function BookCourt() {
   const [modalTime, setModalTime] = useState("08:00");
   const [modalDuration, setModalDuration] = useState(60);
   const [courts, setCourts] = useState([]);
+  const [rateContext, setRateContext] = useState<RateContext | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [favoriteAcademyIds, setFavoriteAcademyIds] = useState<string[]>([]);
   const [favoriteLoadingAcademyId, setFavoriteLoadingAcademyId] = useState<string | null>(null);
@@ -390,9 +398,11 @@ export default function BookCourt() {
         payload
       );
       setCourts(res.data.courts || []);
+      setRateContext(res.data.rateContext || null);
     } catch (err) {
       console.error(err);
       setCourts([]);
+      setRateContext(null);
     }
   };
 
@@ -435,6 +445,7 @@ export default function BookCourt() {
 
     setSelectedAcademy(null);
     setCourts([]);
+    setRateContext(null);
     handleSearch();
   };
 
@@ -464,6 +475,7 @@ export default function BookCourt() {
     setModalTime(startTime);
     setModalDuration(60);
     setCourts([]);
+    setRateContext(null);
 
     fetchCourtAvailability(
       academy._id,
@@ -718,6 +730,12 @@ export default function BookCourt() {
 
                         <div>
                           <p className="font-medium text-slate-900 mb-3">Available Courts</p>
+                          {rateContext && (
+                            <p className="text-xs text-slate-500 mb-3">
+                              Applied rate: <span className="font-medium text-slate-700">{rateContext.rateType === "holiday" ? "Public Holiday" : capitalizeWords(rateContext.weekday || "weekday")}</span>
+                              {rateContext.localDate ? ` (${rateContext.localDate})` : ""}
+                            </p>
+                          )}
                           <div className="flex flex-wrap gap-3">
                             {courts.map((court) => (
                               <div
@@ -737,7 +755,7 @@ export default function BookCourt() {
                                   {court.courtNumber}
                                 </span>
                                 <span className="text-xs">
-                                  {court.price} CAD
+                                  ₹{court.price}
                                 </span>
                               </div>
                             ))}
@@ -756,4 +774,6 @@ export default function BookCourt() {
     </div>
   );
 }
+
+export default BookCourt;
 
