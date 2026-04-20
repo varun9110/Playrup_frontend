@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import bgLogin1 from "@/assets/bg-login-1.png";
 import bgLogin2 from "@/assets/bg-login-2.png";
 import bgLogin3 from "@/assets/bg-login-3.png";
@@ -82,34 +81,19 @@ const Verify = () => {
   const handleResend = async () => {
     setResendLoading(true);
     try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`
-        }
-      });
-
-      if (error) {
-        toast({
-          title: "Resend failed",
-          description: error.message,
-          variant: "destructive"
-        });
-        return;
-      }
+      await axios.post('/api/auth/resend-otp', { email });
 
       toast({
         title: "Verification code sent",
-        description: "Please check your email for the new code"
+        description: "Please check your phone for the new code"
       });
-      
+
       setCountdown(60);
       setCanResend(false);
     } catch (error: any) {
       toast({
-        title: "Error",
-        description: "Failed to resend verification code",
+        title: "Resend failed",
+        description: error.response?.data?.message || "Failed to resend verification code",
         variant: "destructive"
       });
     } finally {
