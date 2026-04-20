@@ -19,6 +19,7 @@ import bgLogin5 from "@/assets/bg-login-5.png";
 import bgLogin6 from "@/assets/bg-login-6.png";
 
 const signupSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email address"),
   phone: z.string().min(10, "Phone number must be at least 10 digits"),
   password: z.string().min(6, "Password must be at least 6 characters"),
@@ -43,6 +44,7 @@ const Signup = () => {
   const form = useForm<SignupFormData>({
     resolver: zodResolver(signupSchema),
     defaultValues: {
+      name: "",
       email: "",
       phone: "",
       password: "",
@@ -54,6 +56,7 @@ const Signup = () => {
     setIsLoading(true);
     try {
       const form = {
+        name: data.name,
         email: data.email,
         password: data.password,
         phone: data.phone
@@ -154,6 +157,24 @@ const Signup = () => {
               <CardContent className="space-y-6 px-8 pb-10">
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(handleSignup)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="text"
+                        placeholder="Enter your name"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <FormField
                 control={form.control}
                 name="email"
