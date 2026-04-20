@@ -12,6 +12,13 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Navbar } from "@/components/layout";
@@ -20,6 +27,7 @@ import {
   Building2,
   Calendar,
   Clock,
+  Copy,
   PlusCircle,
   Settings,
   Trash2,
@@ -108,6 +116,15 @@ const rebuildCourtRates = (numberOfCourts: number, timeSlots: string[], existing
 const normalizeRatePlan = (plan: any, numberOfCourts: number, startTime: string, endTime: string): SportRatePlan => {
   const timeSlots = generateTimeSlots(startTime, endTime);
   const incomingWeekly = Array.isArray(plan?.weeklyRates) ? plan.weeklyRates : [];
+  const holidayDates: string[] = Array.isArray(plan?.publicHolidayDates)
+    ? Array.from(
+      new Set<string>(
+        plan.publicHolidayDates
+          .map((date: unknown) => String(date || ""))
+          .filter((date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+      )
+    ).sort()
+    : [];
 
   const weeklyRates: WeeklyRate[] = weekdayKeys.map((weekday) => {
     const existing = incomingWeekly.find((entry: any) => String(entry?.weekday || "").toLowerCase() === weekday);
@@ -118,9 +135,7 @@ const normalizeRatePlan = (plan: any, numberOfCourts: number, startTime: string,
   });
 
   return {
-    publicHolidayDates: Array.isArray(plan?.publicHolidayDates)
-      ? Array.from(new Set(plan.publicHolidayDates.filter((date: string) => /^\d{4}-\d{2}-\d{2}$/.test(String(date || ""))))).sort()
-      : [],
+    publicHolidayDates: holidayDates,
     weeklyRates,
     holidayRates: rebuildCourtRates(numberOfCourts, timeSlots, plan?.holidayRates || []),
   };
@@ -143,6 +158,7 @@ export default function AcademySetup() {
   const [sportsConfig, setSportsConfig] = useState<Record<string, SportConfig>>({});
   const [activeSportTab, setActiveSportTab] = useState("");
   const [activeRateTabBySport, setActiveRateTabBySport] = useState<Record<string, ActiveRateTab>>({});
+  const [copyTargetDayBySport, setCopyTargetDayBySport] = useState<Record<string, WeekdayKey>>({});
   const [timezone, setTimezone] = useState("");
   const [holidayDateInputBySport, setHolidayDateInputBySport] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -402,6 +418,36 @@ export default function AcademySetup() {
     });
   };
 
+  const handleCopyDayRates = (sport: string, fromDay: WeekdayKey, toDay: WeekdayKey) => {
+    if (fromDay === toDay) {
+      toast({
+        title: "Invalid copy target",
+        description: "Source and target day must be different.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const config = sportsConfig[sport];
+    if (!config) return;
+
+    const nextConfig = structuredClone(config) as SportConfig;
+    const sourceDay = nextConfig.ratePlan.weeklyRates.find((entry) => entry.weekday === fromDay);
+    const targetDay = nextConfig.ratePlan.weeklyRates.find((entry) => entry.weekday === toDay);
+    if (!sourceDay || !targetDay) return;
+
+    targetDay.courts = sourceDay.courts.map((court) => ({
+      courtNumber: court.courtNumber,
+      rates: court.rates.map((slot) => ({ ...slot })),
+    }));
+
+    updateSportConfig(sport, nextConfig);
+    toast({
+      title: "Rates copied",
+      description: `${capitalizeWords(fromDay)} rates copied to ${capitalizeWords(toDay)}.`,
+    });
+  };
+
   const handleSubmit = async () => {
     if (!timezone.trim()) {
       toast({
@@ -612,6 +658,13 @@ export default function AcademySetup() {
                     if (!config) return null;
                     const timeSlots = generateTimeSlots(config.startTime, config.endTime);
                     const activeRateTab = activeRateTabBySport[sport] || "monday";
+                    const activeWeekday = activeRateTab === "holiday" ? null : (activeRateTab as WeekdayKey);
+                    const copyCandidates = weekdayKeys.filter((day) => day !== activeWeekday);
+                    const fallbackCopyTarget = copyCandidates[0] || "monday";
+                    const copyTargetDay =
+                      (copyTargetDayBySport[sport] && copyCandidates.includes(copyTargetDayBySport[sport]))
+                        ? copyTargetDayBySport[sport]
+                        : fallbackCopyTarget;
                     const currentCourts = getCurrentCourtsForTab(sport, activeRateTab);
 
                     return (
@@ -695,16 +748,51 @@ export default function AcademySetup() {
                               </div>
                             </div>
 
-                            <Tabs value={activeRateTab} onValueChange={(value) => setActiveRateTabBySport((prev) => ({ ...prev, [sport]: value as ActiveRateTab }))}>
-                              <TabsList className="h-auto flex-wrap justify-start gap-1 bg-slate-100 p-1">
-                                {weekdayKeys.map((weekday) => (
-                                  <TabsTrigger key={weekday} value={weekday}>
-                                    {capitalizeWords(weekday)}
-                                  </TabsTrigger>
-                                ))}
-                                <TabsTrigger value="holiday">Public Holiday</TabsTrigger>
-                              </TabsList>
-                            </Tabs>
+                            <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+                              <Tabs value={activeRateTab} onValueChange={(value) => setActiveRateTabBySport((prev) => ({ ...prev, [sport]: value as ActiveRateTab }))}>
+                                <TabsList className="h-auto flex-wrap justify-start gap-1 bg-slate-100 p-1">
+                                  {weekdayKeys.map((weekday) => (
+                                    <TabsTrigger key={weekday} value={weekday}>
+                                      {capitalizeWords(weekday)}
+                                    </TabsTrigger>
+                                  ))}
+                                  <TabsTrigger value="holiday">Public Holiday</TabsTrigger>
+                                </TabsList>
+                              </Tabs>
+
+                              <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                                <Label className="text-xs text-slate-600">Copy to</Label>
+                                <Select
+                                  value={copyTargetDay}
+                                  onValueChange={(value) => setCopyTargetDayBySport((prev) => ({ ...prev, [sport]: value as WeekdayKey }))}
+                                  disabled={!activeWeekday}
+                                >
+                                  <SelectTrigger className="w-[170px]">
+                                    <SelectValue placeholder="Select day" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {copyCandidates.map((day) => (
+                                      <SelectItem key={day} value={day}>
+                                        {capitalizeWords(day)}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="h-9"
+                                  disabled={!activeWeekday}
+                                  onClick={() => {
+                                    if (!activeWeekday) return;
+                                    handleCopyDayRates(sport, activeWeekday, copyTargetDay);
+                                  }}
+                                >
+                                  <Copy className="w-4 h-4 mr-2" />
+                                  Copy Day Rates
+                                </Button>
+                              </div>
+                            </div>
 
                             {currentCourts.length > 0 && (
                               <div className="rounded-md border overflow-auto">
